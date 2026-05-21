@@ -3150,29 +3150,33 @@
         };
 
         // ============================================================
-        // DEEP-LINK RECEIVER (v1.0.110) — incoming half of the WhatsApp
-        // share handshake. The sender encodes ?loc=&lat=&lng=&name= via
-        // buildShareText; this function decodes those params on app load
-        // and opens the corresponding location's modal.
+        // DEEP-LINK RECEIVER (v0.4 — gift-not-proposal flow)
         // ------------------------------------------------------------
-        // Three cases handled, in order:
-        //   1. Stable location id (kk, cd, etc) already known to every
-        //      installation — open existing entry. No save needed.
-        //   2. Custom location id (c_<ts>_<rand>) that this recipient
-        //      already has in their customLocations — open existing
-        //      entry. No save (they already have it).
-        //   3. New custom location not on this device. Build a location
-        //      object from lat/lng/name params. ONLY auto-save into
-        //      customLocations if this is a brand-new user (no saved
-        //      favourites or customs at all) — existing users keep their
-        //      curated list untidied; new users get an onboarding-win
-        //      starting saved location.
-        // ------------------------------------------------------------
-        // After modal opens, URL is cleaned via history.replaceState so
-        // a page refresh doesn't re-trigger the deep link unexpectedly.
-        // If params are missing or malformed, function exits silently —
-        // the recipient lands on the normal home screen as if no link
-        // were involved.
+        // Decodes the share URL params (?loc=&lat=&lng=&en=&zh=) the
+        // sender encoded via buildShareText / buildLocationInviteText
+        // and treats the arrival as a "gift" — the receiver clicked
+        // a link that explicitly said "Add to my list," so we fulfill
+        // that promise directly:
+        //
+        //   - If receiver already has the location (id match OR GPS
+        //     proximity within ~11m), do nothing. Show a toast saying
+        //     "you already have this." Respect existing favorite state.
+        //   - Otherwise, save to customLocations + auto-favorite + toast.
+        //
+        // In both cases the receiver lands on the home screen — they
+        // see their list with the new arrival (or the existing entry)
+        // already in place. No "+ Add to my list" button, no detail-
+        // view auto-open, no install prompt, no onboarding modal.
+        //
+        // Earlier flows (v1.0.110 silent auto-save, v1.0.111 ephemeral-
+        // with-explicit-add) are now retired. The new flow trusts the
+        // receiver's act of clicking — they OPTED IN by tapping the
+        // link with the explicit Chinese/English CTA in the message
+        // body. We honor that opt-in by treating the arrival as the
+        // add action itself.
+        //
+        // Dedupe by GPS coordinates (not name). Same physical farm =
+        // same location, even if different farmers named it differently.
         // ============================================================
         window.handleIncomingDeepLink = () => {
             try {
@@ -3188,52 +3192,12 @@
                 // we don't want stale params lingering on the next refresh.
                 try { history.replaceState({}, '', window.location.pathname); } catch(e) { /* non-fatal */ }
 
-                // CASE 1+2 — recipient already has this location AND it's not soft-deleted.
-                // getAllLocations() merges STABLE_LOCATIONS with customLocations, but it
-                // does NOT filter hiddenIds (the recycle-bin contents). For deep-link purposes,
-                // a hidden location is conceptually "the user deleted this from their list" —
-                // a fresh share from a friend shouldn't silently bypass that deletion and
-                // open without showing the "Add to my list" button. So we treat a hidden id
-                // as if the location weren't there, falling through to the ephemeral path.
-                //
-                // The check below splits "really has this" from "has it but hidden":
-                //   - existing AND not hidden  → Case 1+2 (normal re-open)
-                //   - existing AND hidden      → fall through, mark ephemeral, show Add button
-                //   - not existing             → fall through, build new entry, mark ephemeral
-                const existing = getAllLocations().find(l => l.id === loc);
-                const isHidden = Array.isArray(hiddenIds) && hiddenIds.includes(loc);
-                if (existing && !isHidden) {
-                    // If the recipient hasn't favourited this location yet, mark it so the
-                    // report card shows a "Mark as favourite" button. This extends the
-                    // share-receiver pattern beyond just custom-location adds: stable
-                    // locations that the recipient already has (every device has them) can
-                    // still be promoted to favourites via the same shared-link flow. The
-                    // user's tap on the button calls saveSharedLocation which handles both
-                    // cases (ephemeral custom OR shareable favourite) via a unified path.
-                    // Hidden locations don't get this — they go down the ephemeral path
-                    // above which already shows the full "Add to my list" button.
-                    const alreadyFav = Array.isArray(favoriteIds) && favoriteIds.includes(loc);
-                    if (!alreadyFav) {
-                        window.shareableFavoriteIds = window.shareableFavoriteIds || new Set();
-                        window.shareableFavoriteIds.add(loc);
-                    }
-                    setTimeout(() => window.openDetail(loc), 100);
-                    return;
-                }
-
-                // CASE 3 — incoming custom location this device doesn't have yet.
-                // Need lat/lng to fetch weather data; without them we can't render
-                // anything meaningful. Bail silently if missing.
-                if (isNaN(lat) || isNaN(lng)) return;
-                if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
-
-                // Resolve en/zh names from URL params. Three cases:
-                //   1. New format (v1.0.115+) — both en and zh params present. Use both directly.
-                //   2. New format with one name — only en OR zh present. Use the one given, leave
-                //      the other empty. The location was single-named on the sender's device too.
-                //   3. Legacy format (v1.0.108-v1.0.114) — only name= present. Apply the original
-                //      CJK heuristic: characters in U+4E00..U+9FFF go to zh, others go to en.
-                //      Single-named round-trip is lossless under this fallback.
+                // Resolve en/zh names from URL params. Three cases (carried over from the
+                // pre-rewrite version since the wire format hasn't changed):
+                //   1. New format (v1.0.115+) — both en and zh params present
+                //   2. New format with one name — only en OR zh present
+                //   3. Legacy format (v1.0.108-v1.0.114) — only name= present.
+                //      CJK characters go to zh, others to en.
                 const rawEn = params.get('en');
                 const rawZh = params.get('zh');
                 let nameEn = '';
@@ -3246,8 +3210,95 @@
                     nameEn = hasCJK ? '' : rawName;
                     nameZh = hasCJK ? rawName : '';
                 }
+                
+                // Resolve a display name for toast messages — prefer Chinese when
+                // available to match the typical recipient's language; fall back
+                // through en, then to the raw id as last resort.
+                const displayName = nameZh || nameEn || rawName || loc;
+
+                // ============================================================
+                // NEW GIFT-NOT-PROPOSAL FLOW
+                // ------------------------------------------------------------
+                // Receiver clicked a deep-link share. The CTA they clicked
+                // explicitly said "Add to my list" — they opted in by the act
+                // of clicking. So we fulfill that promise directly:
+                //
+                //   1. If a matching location already exists (by GPS proximity
+                //      OR by id), do nothing — show a toast saying "you already
+                //      have this." Respect whatever favorite state they have.
+                //   2. Otherwise, save the location to customLocations, add to
+                //      favorites (this is fresh new content, auto-favorite is
+                //      part of the "gift" — recipient sees it in their main
+                //      list immediately), show a toast saying "added."
+                //
+                // In both cases: land on the home screen (DO NOT auto-open
+                // detail). The receiver gets context — "here's my list, the
+                // new arrival is right there" — and can tap into the detail
+                // view themselves when they want.
+                //
+                // Dedupe strategy: GPS within ~11 meters (0.0001 degrees), OR
+                // exact id match. Name is NOT used as a dedupe signal — same
+                // physical place can be named differently by different farmers
+                // (Mike calls it "我的农场", Lee calls it "Kg. Baru Jerkoh");
+                // GPS is the only reliable "is this the same place" signal.
+                // ============================================================
+
+                // Dedupe check. We look at ALL known locations the user has,
+                // including soft-deleted (hiddenIds) ones — if they had this
+                // before and trashed it, we don't want to silently bring it back.
+                // Their soft-delete was a decision; respect it.
+                const hasValidCoords = !isNaN(lat) && !isNaN(lng) &&
+                                       lat >= -90 && lat <= 90 &&
+                                       lng >= -180 && lng <= 180;
+                
+                let existingMatch = null;
+                if (typeof getAllLocations === 'function') {
+                    const allKnown = getAllLocations();
+                    // First, exact id match (re-share of a location we already added).
+                    existingMatch = allKnown.find(l => l.id === loc) || null;
+                    // Then, GPS proximity match (different id but same physical place).
+                    // Only check if we have valid coords to compare against.
+                    if (!existingMatch && hasValidCoords) {
+                        existingMatch = allKnown.find(l =>
+                            typeof l.lat === 'number' && typeof l.lng === 'number' &&
+                            Math.abs(l.lat - lat) < 0.0001 &&
+                            Math.abs(l.lng - lng) < 0.0001
+                        ) || null;
+                    }
+                }
+                
+                // Also check the recycle bin specifically. A location in the
+                // recycle bin would appear in getAllLocations() above (it's still
+                // in customLocations, just hidden); we want to know that and NOT
+                // restore it on auto-add. The user deleted it deliberately.
+                const isInRecycleBin = existingMatch &&
+                                       Array.isArray(hiddenIds) &&
+                                       hiddenIds.includes(existingMatch.id);
+
+                if (existingMatch) {
+                    // Already have this location (active or recycle-bin). No save,
+                    // no favorite change, no detail-view open. Just inform the user.
+                    if (typeof window.showToast === 'function') {
+                        const matchName = (existingMatch.zh || existingMatch.en || displayName);
+                        if (isInRecycleBin) {
+                            window.showToast(`「${matchName}」在回收站 / In recycle bin`, false);
+                        } else {
+                            window.showToast(`您已有「${matchName}」/ You already have this`, false);
+                        }
+                    }
+                    return;
+                }
+
+                // No existing match. Build a new location and save it.
+                // Need valid coords to build the location object — if missing,
+                // bail silently (can't render weather without lat/lng).
+                if (!hasValidCoords) {
+                    console.warn('Deep-link missing or invalid coordinates; cannot add');
+                    return;
+                }
+                
                 const newLoc = {
-                    id: loc,                       // Reuse sender's id so re-clicks idempotent
+                    id: loc,                       // Reuse sender's id so future re-shares dedupe by id
                     en: nameEn,
                     zh: nameZh,
                     lat, lng,
@@ -3255,53 +3306,47 @@
                     em: lng > 108.0               // East Malaysia flag — same rule as getAllLocations
                 };
 
-                // EPHEMERAL handling (uniform for ALL recipients — v1.0.111 design).
-                // Earlier v1.0.110 silently auto-saved for brand-new users on the
-                // theory that an onboarding-empty home screen was a bad first state.
-                // That broke the "no surprises" principle — users got something saved
-                // to their device they never asked for. The new design: every
-                // deep-linked location the recipient doesn't already have starts
-                // ephemeral. An explicit "Add to my list" button in the report card
-                // lets them save when they want to keep it. Brand-new users discover
-                // the add-location mechanic organically through that button.
-                //
-                // The location is injected into customLocations so getAllLocations()
-                // and openDetail() can find it, and tracked in window.ephemeralLocationIds
-                // so the report-card render can show the "Add to my list" button only
-                // for not-yet-saved entries. NOT written to localStorage — vanishes on
-                // reload, exactly as designed.
-                //
-                // Dedup guard (v1.0.117): if the same id already exists in customLocations
-                // (the soft-deleted case where the entry sits in the recycle bin via
-                // hiddenIds), don't push a duplicate — just mark the existing entry as
-                // ephemeral. saveSharedLocation will clear it from hiddenIds when the user
-                // taps Add, restoring the location to their visible list. Without this guard,
-                // we'd duplicate the customLocations row, leaving a phantom entry behind.
+                // Persist directly. The "gift" model: receiver clicked a link
+                // saying "Add to my list" — that's the opt-in. We deliver.
                 customLocations = Array.isArray(customLocations) ? customLocations : [];
-                const alreadyInCustom = customLocations.some(l => l.id === loc);
-                const alreadyInHidden = Array.isArray(hiddenIds) && hiddenIds.includes(loc);
-                
-                // Track "user knew about this location BEFORE this share event."
-                // Used by saveSharedLocation to skip auto-favorite for re-shares of
-                // locations the user has previously made decisions about. This is the
-                // single source of truth — checking customLocations inside saveSharedLocation
-                // wouldn't work because by then the entry has been pushed into the array.
-                // Includes both active (alreadyInCustom) and soft-deleted (alreadyInHidden)
-                // entries — both prove the user has previously dealt with this location.
-                if (alreadyInCustom || alreadyInHidden) {
-                    window.preExistingShareIds = window.preExistingShareIds || new Set();
-                    window.preExistingShareIds.add(loc);
+                customLocations.push(newLoc);
+                if (typeof CUSTOM_CACHE_KEY !== 'undefined' && typeof safeSet === 'function') {
+                    safeSet(CUSTOM_CACHE_KEY, JSON.stringify(customLocations));
                 }
-                
-                if (!alreadyInCustom) {
-                    customLocations.push(newLoc);
-                }
-                window.ephemeralLocationIds = window.ephemeralLocationIds || new Set();
-                window.ephemeralLocationIds.add(loc);
 
-                // Refresh the home list and open the modal pointed at the new location.
+                // Auto-favorite — this is a fresh new arrival, the user opted in
+                // by clicking the share link. Add to favorites so they see it
+                // prominently in their list.
+                favoriteIds = Array.isArray(favoriteIds) ? favoriteIds : [];
+                if (!favoriteIds.includes(loc)) {
+                    favoriteIds.push(loc);
+                    if (typeof FAV_CACHE_KEY !== 'undefined' && typeof safeSet === 'function') {
+                        safeSet(FAV_CACHE_KEY, JSON.stringify(favoriteIds));
+                    }
+                }
+                
+                // Persist to user's sync if available (Firestore).
+                if (typeof saveUserData === 'function') {
+                    try { saveUserData(); } catch (e) { console.warn('saveUserData failed (non-fatal):', e); }
+                }
+                
+                // Refresh the home list so the new arrival is visible.
                 if (typeof renderList === 'function') renderList();
-                setTimeout(() => window.openDetail(loc), 100);
+                
+                // Trigger a weather fetch so the location card shows real data
+                // instead of "--" stubs. Best-effort; doesn't block toast.
+                if (typeof fetchLandingWeather === 'function') {
+                    try { fetchLandingWeather(); } catch (e) {}
+                }
+                
+                // Inform the user. Bilingual toast since we don't know which
+                // language the recipient prefers (their userName may not even
+                // be set yet on first arrival).
+                if (typeof window.showToast === 'function') {
+                    setTimeout(() => {
+                        window.showToast(`📍 已添加「${displayName}」/ Added`, false);
+                    }, 300);  // small delay so toast appears after the home list re-renders
+                }
 
             } catch (err) {
                 console.warn('Deep-link handler error (non-fatal):', err);
