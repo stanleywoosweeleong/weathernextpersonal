@@ -6133,6 +6133,7 @@
                     today: 'Today',
                     tomorrow: 'Tomorrow',
                     dayAfter: 'Day After',
+                    dayAfterNext: 'Day After Next',
                     rainfall: (mm) => {
                         if (mm < 10) return null;
                         if (mm < 25) return 'Moderate Rainfall';
@@ -6147,6 +6148,7 @@
                     today: '今天',
                     tomorrow: '明天',
                     dayAfter: '后天',
+                    dayAfterNext: '大后天',
                     rainfall: (mm) => {
                         // Non-colliding vocabulary — avoids 暴雨 (which means "thunderstorm
                         // hedge" in the storm clause already in this report).
@@ -6163,6 +6165,7 @@
                     today: 'Hari Ini',
                     tomorrow: 'Esok',
                     dayAfter: 'Lusa',
+                    dayAfterNext: 'Tulat',
                     rainfall: (mm) => {
                         if (mm < 10) return null;
                         if (mm < 25) return 'Hujan Sederhana';
@@ -6435,7 +6438,7 @@
                     // days 2-3 use full 24h since there's no 'current' concept.
                     const labels3 = dayOffset === 0
                         ? [V.today, V.tomorrow, V.dayAfter]
-                        : [V.tomorrow, V.dayAfter, '+2'];
+                        : [V.tomorrow, V.dayAfter, V.dayAfterNext];
                     for (let i = 0; i < 3; i++) {
                         const idx = dayOffset + i;
                         const summary = buildDayLine(idx, labels3[i]);
