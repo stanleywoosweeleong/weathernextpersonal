@@ -6977,7 +6977,19 @@
                     }
                 }
                 
-                if (typeof window.showToast === 'function') {
+                // Toast guard (v0.6.3): only show the "Copied — choose contact"
+                // toast for the FALLBACK (window.open) path. After a successful
+                // navigator.share() the user is already in WhatsApp with the
+                // message pre-filled — instructing them to "choose a contact"
+                // is confusing because they just did. After an AbortError
+                // (user explicitly dismissed the share sheet), the toast also
+                // shouldn't appear — they said no, don't push them.
+                //
+                // Mobile users were reading the post-share toast as "there's
+                // still something to do" and tapping the broadcast button a
+                // second time, thinking the first didn't complete. The data
+                // is on their clipboard either way as a safety net.
+                if (!dispatched && typeof window.showToast === 'function') {
                     window.showToast('已复制 / Copied — choose a WhatsApp contact', false);
                 }
             } catch(err) {
