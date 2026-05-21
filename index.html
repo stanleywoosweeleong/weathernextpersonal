@@ -6027,9 +6027,22 @@
             })();
             const timeGreeting = getTimeGreeting(broadcasterHour, lang);
             
-            let headerLine = timeGreeting + ' @ ' + APP_BRANDING.broadcastBrand + ' ' + targetDateStr;
-            if (dayOffset === 1) headerLine += ' (明日 Tomorrow)';
-            if (lunarStr) headerLine += ' ' + lunarStr;
+            // Header components vary by greeting language so the line reads
+            // cleanly in a single language rather than mixing scripts.
+            //   zh: 早上好 @ 农友天气 22/5 (明日) 四月初六     ← lunar date shown
+            //   en: Good Morning @ WeatherNext 22/5 (Tomorrow)
+            //   ms: Selamat Pagi @ WeatherNext 22/5 (Esok)
+            // Lunar date is intentionally zh-only — non-Chinese-speaking
+            // recipients won't recognize 四月初六 as a date, so dropping it
+            // keeps the line tight for en/ms audiences.
+            const brand = (lang === 'zh') ? '农友天气' : 'WeatherNext';
+            const tomorrowTag = (lang === 'zh') ? '(明日)'
+                              : (lang === 'ms') ? '(Esok)'
+                              : '(Tomorrow)';
+            
+            let headerLine = timeGreeting + ' @ ' + brand + ' ' + targetDateStr;
+            if (dayOffset === 1) headerLine += ' ' + tomorrowTag;
+            if (lunarStr && lang === 'zh') headerLine += ' ' + lunarStr;
             
             // Data freshness header.
             // ----------
