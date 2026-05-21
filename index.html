@@ -5763,12 +5763,18 @@
                 const visible = getAllLocations().filter(l => !hiddenIds.includes(l.id));
                 ids = ids.filter(id => visible.some(l => l.id === id));
             } else if (mode === 'allStable' || mode === 'allStableHourly') {
-                // STABLE_LOCATIONS is the baked-in list; filter out user-purged ones.
-                // v1.0.142: apply geographic state-based sort for predictable broadcast
-                // order (Kelantan top → Perak → Pahang → Negeri Sembilan → Johor →
-                // Sarawak → Sabah). Recipients can scan and find their farm in a
-                // consistent place across daily broadcasts.
-                const filteredIds = STABLE_LOCATIONS
+                // "All Stable" broadcast — every location the user has, minus
+                // purged/hidden ones. Originally pulled from the STABLE_LOCATIONS
+                // constant when locations were baked-in by Stanley; in the generic
+                // personalizable build, STABLE_LOCATIONS is empty by design and all
+                // user locations live in customLocations. Use getAllLocations() so
+                // the merge (stable + custom) is what gets broadcast.
+                //
+                // v1.0.142: apply geographic state-based sort. With user-added
+                // locations the LOCATION_STATES map is empty too, so the sort
+                // gracefully falls through to lat/lng ordering — still produces
+                // a deterministic, sensible order.
+                const filteredIds = getAllLocations()
                     .filter(l => !purgedIds.includes(l.id) && !hiddenIds.includes(l.id))
                     .map(l => l.id);
                 ids = (typeof sortStableLocations === 'function')
@@ -6308,7 +6314,10 @@
                     const visible = getAllLocations().filter(l => !hiddenIds.includes(l.id));
                     neededIds = (favoriteIds || []).filter(id => visible.some(l => l.id === id));
                 } else {
-                    const filteredIds = STABLE_LOCATIONS
+                    // "All" pre-fetch — use getAllLocations() since user-added
+                    // locations now live in customLocations, not STABLE_LOCATIONS.
+                    // Mirror change to the broadcast text builder above.
+                    const filteredIds = getAllLocations()
                         .filter(l => !purgedIds.includes(l.id) && !hiddenIds.includes(l.id))
                         .map(l => l.id);
                     // v1.0.142: apply same geographic sort as buildBroadcastText so the
