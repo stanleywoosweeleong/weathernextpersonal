@@ -6076,145 +6076,100 @@
                     return line;
                 };
                 
-                if (mode === 'favorites') {
-                    // 3-day per location: dayOffset, dayOffset+1, dayOffset+2.
-                    // Day labels come from the location's own vocab — so an English-override
-                    // location shows "Today / Tomorrow / Day After" even when the broadcast
-                    // is otherwise in Chinese.
-                    const labels3 = dayOffset === 0
-                        ? [V.today, V.tomorrow, V.dayAfter]
-                        : [V.tomorrow, V.dayAfter, '+2'];
-                    for (let i = 0; i < 3; i++) {
-                        const idx = dayOffset + i;
-                        const line = buildDayLine(idx, labels3[i]);
-                        if (line) {
-                            sections.push(line);
-                            // Path B (v1.0.126): blank line after storm-day for breathing room.
-                            const isLastDay = (i === 2);
-                            if (!isLastDay && line.includes('\n')) {
-                                sections.push('');
-                            }
-                        }
+                // ==========================================================
+                // SHARED HOURLY TIMELINE BUILDER
+                // ----------------------------------------------------------
+                // Returns an array of strings (lines) for the hourly section
+                // of a single day. Used by all three modes — favorites (3-day),
+                // allStable (1-day), allStableHourly (1-day with Malay).
+                //
+                // useSmartWindow=true uses the three-tier today/tomorrow window
+                // calibrated for the broadcaster workflow (current hour through
+                // 23:00, or partial today + tomorrow overnight, or full tomorrow
+                // after 6 PM). useSmartWindow=false uses full 00:00-23:00 for
+                // the given day index — appropriate for future days in the
+                // 3-day favorites report where there's no 'current hour' anchor.
+                //
+                // includeMalay=true appends a second pass of lines in Malay
+                // below the primary-language lines. Preserves the existing
+                // allStableHourly bilingual format for the broadcaster's
+                // foreign-worker audience.
+                //
+                // Time-tier logic (v1.0.143):
+                //   Before 12 PM MYT: today's CURRENT hour through 23:00
+                //   12 PM - 6 PM MYT: today's remaining + tomorrow 00:00-03:00
+                //   After 6 PM MYT:    full tomorrow 00:00-23:00
+                //
+                // mm/hour classification (Stanley-calibrated, 4yr Windy ground-truth):
+                //   < 0.7   → skipped (not felt/visible in Malaysian conditions)
+                //   0.7-1   → Drizzle / 毛毛雨 / Renyai-renyai
+                //   1-2     → Light Rain / 小雨 / Hujan ringan
+                //   2-4     → Moderate Rain / 中雨 / Hujan sederhana (mm shown)
+                //   4-7     → Heavy Rain / 大雨 / Hujan lebat (mm shown)
+                //   ≥7      → Very Heavy Rain / 特大雨 / Hujan sangat lebat (mm shown)
+                // ==========================================================
+                
+                const fmtClockHour = (h24) => {
+                    const h = h24 % 24;
+                    if (h === 0) return '12am';
+                    if (h === 12) return '12pm';
+                    return h < 12 ? `${h}am` : `${h - 12}pm`;
+                };
+                
+                const classify = (mm) => {
+                    if (mm < 0.7) return null;
+                    if (mm < 1)  return { en: 'Drizzle',         zh: '毛毛雨', ms: 'Renyai-renyai',      showMm: false };
+                    if (mm < 2)  return { en: 'Light Rain',      zh: '小雨',   ms: 'Hujan ringan',       showMm: false };
+                    if (mm < 4)  return { en: 'Moderate Rain',   zh: '中雨',   ms: 'Hujan sederhana',    showMm: true  };
+                    if (mm < 7)  return { en: 'Heavy Rain',      zh: '大雨',   ms: 'Hujan lebat',        showMm: true  };
+                    return         { en: 'Very Heavy Rain', zh: '特大雨', ms: 'Hujan sangat lebat', showMm: true  };
+                };
+                
+                // Returns { startHour, endHour } for the requested day.
+                // Smart window only meaningful for dayIdx 0 (today); for any
+                // other day, returns full 00:00-23:00 anchored at that day's
+                // offset in the 48-hour hourly array.
+                const computeWindow = (dayIdx, useSmartWindow) => {
+                    if (!useSmartWindow || dayIdx > 0) {
+                        // Full 24h for that day. Hourly arrays are 48h (today + tomorrow).
+                        return { startHour: dayIdx * 24, endHour: (dayIdx + 1) * 24 };
                     }
-                } else if (mode === 'allStableHourly') {
-                    // ==========================================================
-                    // HOURLY BILINGUAL FORECAST + DAILY SUMMARY (v1.0.144)
-                    // ----------------------------------------------------------
-                    // Per-location structure:
-                    //   1. Daily summary (location's primary language: zh or en)
-                    //      with mm threshold + storm window + confidence marker
-                    //   2. Blank line for breathing room
-                    //   3. Hourly timeline (primary language on top, Malay below)
-                    //
-                    // The daily summary acts as a headline — recipient gets the day's
-                    // shape at a glance (peak temp, probability, total mm, storm window,
-                    // model confidence). The hourly timeline below provides the actionable
-                    // hour-by-hour detail.
-                    //
-                    // Time window for hourly section (three-tier per v1.0.143):
-                    //   Before 12 PM:  today from current hour through 23:00
-                    //   12 PM - 6 PM:  today's remaining hours + tomorrow 00:00-03:00
-                    //   After 6 PM:    all 24 hours of tomorrow (00:00-23:00)
-                    //
-                    // Intensity thresholds (per mm/hour, calibrated against 4 years of
-                    // Stanley's Windy.com ground-truth observation in Malaysia):
-                    //   < 0.7   → skipped
-                    //   0.7-1   → Drizzle / 毛毛雨 / Renyai-renyai
-                    //   1-2     → Light Rain / 小雨 / Hujan ringan
-                    //   2-4     → Moderate Rain / 中雨 / Hujan sederhana (mm shown)
-                    //   4-7     → Heavy Rain / 大雨 / Hujan lebat (mm shown)
-                    //   ≥7      → Very Heavy Rain / 特大雨 / Hujan sangat lebat (mm shown)
-                    // ==========================================================
-                    
-                    // STEP 1: Daily summary line. Reuses buildDayLine() which handles
-                    // the language switching, mm thresholds, storm windows, and ensemble
-                    // confidence marker that the existing 'allStable' mode produces.
-                    const dailySummaryLine = buildDayLine(dayOffset, dayOffset === 0 ? V.today : V.tomorrow);
-                    if (dailySummaryLine) {
-                        sections.push(dailySummaryLine);
-                        sections.push('');  // blank line separating daily summary from hourly
+                    // Smart window for today (dayIdx === 0).
+                    const now = new Date();
+                    const mytHour = now.getHours();
+                    if (dayOffset === 1) {
+                        // After 6 PM — full tomorrow (indices 24-47).
+                        return { startHour: 24, endHour: 48 };
+                    } else if (mytHour >= 12) {
+                        // 12 PM - 6 PM — today from current hour through tomorrow 3 AM.
+                        return { startHour: mytHour, endHour: 28 };
+                    } else {
+                        // Before 12 PM — today from current hour through 23:00.
+                        return { startHour: Math.max(0, mytHour), endHour: 24 };
                     }
+                };
+                
+                const buildHourlyTimeline = (dayIdx, opts) => {
+                    opts = opts || {};
+                    const useSmart = !!opts.useSmartWindow;
+                    const includeMalay = !!opts.includeMalay;
                     
-                    // STEP 2: Hourly timeline.
                     const precipArr = (typeof getHourlyData === 'function')
                         ? getHourlyData(lid, 'precipitation', true)
                         : null;
                     
                     if (!Array.isArray(precipArr) || precipArr.length === 0) {
-                        sections.push('No hourly data / Tiada data setiap jam');
-                        sections.push('');
-                        continue;
+                        const noDataTop = locLang === 'en'
+                            ? 'No hourly data'
+                            : '无逐时数据';
+                        return includeMalay
+                            ? [noDataTop, 'Tiada data setiap jam']
+                            : [noDataTop];
                     }
                     
-                    // Determine the hour range to scan.
-                    // Hourly arrays from Open-Meteo start at hour 0 of TODAY local time.
-                    // ----------
-                    // Three-tier time window (v1.0.143) per Stanley's broadcaster workflow:
-                    //   Before 12 PM MYT: today only, from CURRENT in-progress hour through 23:00
-                    //   12 PM - 6 PM MYT: today's remaining hours + tomorrow 00:00-03:00
-                    //     (covers overnight period for farmers planning evening/early-morning work)
-                    //   After 6 PM MYT:    all 24 hours of tomorrow (00:00-23:00)
-                    //
-                    // The "CURRENT hour" inclusion is intentional. At 5:30 AM broadcast time,
-                    // the 5 AM hour is in progress; if rain is forecast for it, recipients see
-                    // "5am Light Rain" which corresponds to rain happening right now. Better
-                    // than starting from 6 AM and leaving recipients to wonder about now.
-                    //
-                    // Date rollover convention: hours past midnight just appear as "1am 2am 3am"
-                    // following the "...9pm 10pm 11pm" sequence. Recipients infer the rollover
-                    // from the time sequence — Stanley's audience is trained on this convention
-                    // from his 4 years of manual broadcasts.
-                    const now = new Date();
-                    const mytHour = now.getHours();
-                    let startHour, endHour;
-                    if (dayOffset === 1) {
-                        // After 6 PM — full tomorrow (indices 24-47).
-                        startHour = 24;
-                        endHour = 48;
-                    } else if (mytHour >= 12) {
-                        // 12 PM - 6 PM — today from current hour through tomorrow 3 AM.
-                        // Indices: current hour through hour 27 (24 + 3 = end of 3 AM hour).
-                        startHour = mytHour;
-                        endHour = 28;  // exclusive: includes hour 27 (which represents 3-4 AM rainfall)
-                    } else {
-                        // Before 12 PM — today from current hour through 23:00.
-                        startHour = mytHour;
-                        endHour = 24;
-                    }
-                    if (startHour < 0) startHour = 0;
+                    const { startHour, endHour } = computeWindow(dayIdx, useSmart);
                     
-                    // Format an hour as "1pm" / "11am" / "12am" / "12pm".
-                    const fmtClockHour = (h24) => {
-                        const h = h24 % 24;
-                        if (h === 0) return '12am';
-                        if (h === 12) return '12pm';
-                        return h < 12 ? `${h}am` : `${h - 12}pm`;
-                    };
-                    
-                    // Classify mm/hour into multilingual labels + showMm flag.
-                    // Thresholds calibrated by Stanley against 4 years of Windy.com ground-truth
-                    // observation in Malaysia. The 0.7mm/h floor is genuine — anything below
-                    // is not visible/felt on the ground in Malaysian humid conditions, even if
-                    // models forecast it.
-                    //
-                    // Vocabulary notes:
-                    // - Chinese 毛毛雨 used for 0.7-1mm/h (Stanley confirmed 细雨 and 毛毛雨 are
-                    //   interchangeable in Malaysian usage; no need for a separate 细雨 tier).
-                    // - Chinese 特大雨 used for ≥7mm/h to avoid vocabulary collision with the
-                    //   existing 可能有暴雨 / Possible Thunderstorm label (CAPE-based electrical
-                    //   activity warning) used elsewhere in the broadcast.
-                    // - Malay "Hujan sangat lebat" matches the daily-summary vocabulary from
-                    //   v1.0.127 for consistency across broadcast formats.
-                    const classify = (mm) => {
-                        if (mm < 0.7) return null;
-                        if (mm < 1)  return { en: 'Drizzle',         zh: '毛毛雨', ms: 'Renyai-renyai',      showMm: false };
-                        if (mm < 2)  return { en: 'Light Rain',      zh: '小雨',   ms: 'Hujan ringan',       showMm: false };
-                        if (mm < 4)  return { en: 'Moderate Rain',   zh: '中雨',   ms: 'Hujan sederhana',    showMm: true  };
-                        if (mm < 7)  return { en: 'Heavy Rain',      zh: '大雨',   ms: 'Hujan lebat',        showMm: true  };
-                        return         { en: 'Very Heavy Rain', zh: '特大雨', ms: 'Hujan sangat lebat', showMm: true  };
-                    };
-                    
-                    // Scan the hour range, collect rain hours.
+                    // Collect rain hours in this window.
                     const rainEntries = [];
                     for (let h = startHour; h < endHour; h++) {
                         const mm = precipArr[h];
@@ -6225,36 +6180,78 @@
                     }
                     
                     if (rainEntries.length === 0) {
-                        // Dry day — bilingual no-rain line. Top language matches the farmer
-                        // owner's preference (Chinese for the bulk of locations, English for
-                        // the three foreign-worker farms — kk/keni/kion). Malay below for the
-                        // worker layer in every case.
+                        // Dry day. Single-language or bilingual no-rain line.
                         const topNoRain = locLang === 'en' ? 'No rain' : '没有下雨';
-                        sections.push(topNoRain);
-                        sections.push('Tiada hujan');
-                    } else {
-                        // Build top-language lines first (Chinese for owner, or English for
-                        // English-override farms), then Malay lines below for the worker layer.
-                        // This top/bottom split is intentional: the owner reads top, the worker
-                        // reads bottom, neither has to scan past the other's language.
-                        const topLines = [];
-                        const msLines = [];
-                        for (const e of rainEntries) {
-                            const clock = fmtClockHour(e.hour);
-                            const mmStr = e.cls.showMm ? `, ${Math.round(e.mm * 10) / 10}mm` : '';
-                            const topLabel = locLang === 'en' ? e.cls.en : e.cls.zh;
-                            topLines.push(`${clock} ${topLabel}${mmStr}`);
+                        return includeMalay
+                            ? [topNoRain, 'Tiada hujan']
+                            : [topNoRain];
+                    }
+                    
+                    // Build top-language lines. Bilingual mode adds Malay below.
+                    const topLines = [];
+                    const msLines = [];
+                    for (const e of rainEntries) {
+                        const clock = fmtClockHour(e.hour);
+                        const mmStr = e.cls.showMm ? `, ${Math.round(e.mm * 10) / 10}mm` : '';
+                        const topLabel = locLang === 'en' ? e.cls.en : e.cls.zh;
+                        topLines.push(`${clock} ${topLabel}${mmStr}`);
+                        if (includeMalay) {
                             msLines.push(`${clock} ${e.cls.ms}${mmStr}`);
                         }
-                        for (const l of topLines) sections.push(l);
-                        for (const l of msLines) sections.push(l);
                     }
+                    
+                    return includeMalay ? topLines.concat(msLines) : topLines;
+                };
+                
+                // ==========================================================
+                // PER-MODE RENDER — favorites (3-day), allStable (1-day),
+                // allStableHourly (1-day with Malay)
+                // ==========================================================
+                
+                if (mode === 'favorites') {
+                    // 3-day per location, each day = daily summary + hourly timeline.
+                    // Day 1 uses the smart window (current-hour anchor for 'now');
+                    // days 2-3 use full 24h since there's no 'current' concept.
+                    const labels3 = dayOffset === 0
+                        ? [V.today, V.tomorrow, V.dayAfter]
+                        : [V.tomorrow, V.dayAfter, '+2'];
+                    for (let i = 0; i < 3; i++) {
+                        const idx = dayOffset + i;
+                        const summary = buildDayLine(idx, labels3[i]);
+                        if (!summary) continue;
+                        sections.push(summary);
+                        sections.push('');
+                        // Smart window only for day 1 (i === 0).
+                        const useSmart = (i === 0);
+                        const hourlyLines = buildHourlyTimeline(idx, { useSmartWindow: useSmart, includeMalay: false });
+                        for (const line of hourlyLines) sections.push(line);
+                        // Blank between days (but not after the last day — the
+                        // per-location blank further below handles separation
+                        // from the next location).
+                        if (i < 2) sections.push('');
+                    }
+                } else if (mode === 'allStableHourly') {
+                    // 1 day, bilingual (single-language top + Malay below). Smart
+                    // window for the broadcaster workflow. Preserved as-is per
+                    // Stanley's request — still useful for foreign-worker layer.
+                    const summary = buildDayLine(dayOffset, dayOffset === 0 ? V.today : V.tomorrow);
+                    if (summary) {
+                        sections.push(summary);
+                        sections.push('');
+                    }
+                    const hourlyLines = buildHourlyTimeline(dayOffset, { useSmartWindow: true, includeMalay: true });
+                    for (const line of hourlyLines) sections.push(line);
                 } else {
-                    // 1-day per location for the all-stable broadcast. No internal day
-                    // separation needed — there's only one day per location, and the
-                    // per-location blank line below provides separation from the next.
-                    const line = buildDayLine(dayOffset, dayOffset === 0 ? V.today : V.tomorrow);
-                    if (line) sections.push(line);
+                    // 1 day, single-language. Matches allStableHourly structure
+                    // (daily summary + hourly timeline) but without the Malay
+                    // doubled layer. Same smart-window logic as the bilingual mode.
+                    const summary = buildDayLine(dayOffset, dayOffset === 0 ? V.today : V.tomorrow);
+                    if (summary) {
+                        sections.push(summary);
+                        sections.push('');
+                    }
+                    const hourlyLines = buildHourlyTimeline(dayOffset, { useSmartWindow: true, includeMalay: false });
+                    for (const line of hourlyLines) sections.push(line);
                 }
                 
                 sections.push('');  // blank line between locations
