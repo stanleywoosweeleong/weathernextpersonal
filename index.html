@@ -864,6 +864,33 @@
         </div>
     </div>
     
+    <!-- Broadcast Greeting Language Picker (v0.6.0) -->
+    <!-- Appears when user taps any of the three broadcast buttons. Lets user
+         pick the language for the GREETING line only (e.g. 下午好 vs Selamat
+         Petang vs Good Afternoon). Per-location content stays in each
+         location's own per-location language preference. -->
+    <div id="broadcast-lang-modal" class="w-modal-overlay hidden" style="z-index: 6500;">
+        <div class="w-modal-card relative">
+            <button onclick="window.cancelBroadcastLang()" class="absolute top-3 right-3 p-2 text-slate-300 active:text-slate-500 transition-colors">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 class="text-lg font-black text-slate-900 mb-1">问候语言 / Greeting Language</h3>
+            <p class="text-xs text-slate-500 mb-4">每个地点的天气仍保持其设定语言<br>Location content stays in each location's set language</p>
+            
+            <div class="flex flex-col gap-2">
+                <button id="blang-zh" onclick="window.pickBroadcastLang('zh')" class="w-full py-3 px-3 rounded-lg font-black text-sm bg-slate-100 active:bg-slate-200 hover:bg-slate-150 transition-colors text-slate-800 text-left">
+                    中文 <span class="text-xs text-slate-400 font-normal">早上好 · 下午好 · 晚上好</span>
+                </button>
+                <button id="blang-en" onclick="window.pickBroadcastLang('en')" class="w-full py-3 px-3 rounded-lg font-black text-sm bg-slate-100 active:bg-slate-200 hover:bg-slate-150 transition-colors text-slate-800 text-left">
+                    English <span class="text-xs text-slate-400 font-normal">Good Morning · Afternoon · Evening</span>
+                </button>
+                <button id="blang-ms" onclick="window.pickBroadcastLang('ms')" class="w-full py-3 px-3 rounded-lg font-black text-sm bg-slate-100 active:bg-slate-200 hover:bg-slate-150 transition-colors text-slate-800 text-left">
+                    Bahasa Melayu <span class="text-xs text-slate-400 font-normal">Selamat Pagi · Petang · Malam</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Add Location Modal -->
     <div id="add-loc-modal" class="w-modal-overlay hidden">
         <div class="w-modal-card relative !p-5 !max-h-[85vh] !flex !flex-col !overflow-hidden">
@@ -5902,8 +5929,14 @@
         };
         
         // Build the bulk broadcast text. mode is 'favorites' or 'allStable'.
-        window.buildBroadcastText = (mode, idsOverride) => {
-            const lang = (typeof getLang === 'function') ? getLang('default') : 'zh';
+        window.buildBroadcastText = (mode, idsOverride, greetingLang) => {
+            // `lang` controls the BROADCAST GREETING and serves as the per-location
+            // fallback when no per-location preference is set. If the caller passed
+            // an explicit greetingLang (via the picker), use that — otherwise fall
+            // back to the historical behavior of reading locationAiLangs['default'].
+            const lang = (greetingLang && (greetingLang === 'zh' || greetingLang === 'en' || greetingLang === 'ms'))
+                ? greetingLang
+                : ((typeof getLang === 'function') ? getLang('default') : 'zh');
             const labels = TRANS[lang] || TRANS.zh;
             
             // Compute date range and model run info for the header.
@@ -6058,22 +6091,25 @@
             };
             
             // ============================================================
-            // PER-LOCATION LANGUAGE OVERRIDE (v1.0.127)
+            // PER-LOCATION LANGUAGE OVERRIDE — historical, now empty
             // ------------------------------------------------------------
-            // Some locations need to render in English regardless of the broadcaster's
-            // default app language. Stanley broadcasts in Chinese, but a subset of
-            // recipients (farm owners with foreign-worker labour pools) need English
-            // for downstream machine-translation into their workers' native languages
-            // (Bengali, Indonesian, Nepali, Burmese, Vietnamese).
+            // Originally (v1.0.127, in the broadcaster build): hard-coded list
+            // of stable-location IDs that should always render in English,
+            // regardless of broadcaster's default language. Three IDs were
+            // baked in: kk (Kuala Krai), keni (Keningau), kion (Kionsom).
             //
-            // English is the safest pivot language for these flows — translation
-            // models are most accurate translating FROM English to small Asian
-            // languages, vs translating FROM Chinese which often introduces ambiguity.
+            // In this personalizable build, the original baked-in locations
+            // don't exist (STABLE_LOCATIONS is empty). User-added locations
+            // get their language via the per-location picker in the detail
+            // view (locationAiLangs[id]), read by getLocLang() below. So this
+            // hardcoded override list is empty — there's nothing to override.
             //
-            // This list is hard-coded for now. When Stanley spins up a dedicated
-            // broadcaster repo with config UI, this becomes user-editable.
+            // The check at getLocLang() still references this array as the
+            // highest-priority lookup, so adding an ID here would still work
+            // if a future build needs to force-override a specific location.
+            // For now it's a deliberate empty placeholder, not dead code.
             // ============================================================
-            const ENGLISH_LOCATIONS = ['kk', 'keni', 'kion'];
+            const ENGLISH_LOCATIONS = [];
             
             // Vocabulary lookup keyed by language. getLangVocab returns the right
             // set of labels for a given location's effective language.
@@ -6125,8 +6161,23 @@
             };
             // For ta and my, no native-speaker confirmation of vocabulary — fall through
             // to English so the message is still useful rather than wrong.
+            //
+            // v0.6.0: actually respect per-location language preferences. Previously
+            // this helper only checked ENGLISH_LOCATIONS, then fell back to the outer
+            // `lang` (which was getLang('default')) — meaning every location in a
+            // broadcast used the same language regardless of what the user had set
+            // in each location's detail view. Now it reads locationAiLangs[lid]
+            // properly so Lee can set Kg. Baru Jerkoh to zh, his friend's Penang
+            // farm to ms, and the broadcast renders each section in its own language.
             const getLocLang = (lid) => {
                 if (ENGLISH_LOCATIONS.includes(lid)) return 'en';
+                // Per-location preference (set via the detail-view language picker)
+                const perLoc = (typeof locationAiLangs !== 'undefined' && locationAiLangs)
+                    ? locationAiLangs[lid]
+                    : null;
+                if (perLoc && VOCAB[perLoc]) return perLoc;
+                // No per-location setting — fall back to the broadcast's default
+                // language. ta/my fall through to en since their VOCAB isn't filled.
                 if (VOCAB[lang]) return lang;
                 return 'en';
             };
@@ -6756,7 +6807,10 @@
         // populated yet (this happens when the user hasn't manually opened those
         // locations' detail modals). For the allStable case especially, most
         // locations need fetching.
-        window.handleBroadcastClick = async (mode) => {
+        // Inner broadcast dispatcher — does the actual fetch + build + share.
+        // Wrapped by window.handleBroadcastClick below which handles the
+        // greeting-language picker step.
+        const _handleBroadcastClickInner = async (mode, greetingLang) => {
             try {
                 // Determine which ids the report will need.
                 let neededIds = [];
@@ -6833,7 +6887,7 @@
                     }
                 }
                 
-                const text = window.buildBroadcastText(mode);
+                const text = window.buildBroadcastText(mode, null, greetingLang);
                 
                 // Copy to clipboard for users who want to paste manually.
                 // Useful as a fallback if the share dispatch below is dismissed
@@ -6917,6 +6971,91 @@
                 console.warn('handleBroadcastClick error:', err);
             }
         };
+        
+        // ============================================================
+        // BROADCAST GREETING LANGUAGE PICKER (v0.6.0)
+        // ------------------------------------------------------------
+        // When user taps any of the three broadcast buttons, this picker
+        // opens first to let them choose the language for the greeting
+        // line (下午好 vs Good Afternoon vs Selamat Petang). Each location's
+        // forecast content still renders in that location's own per-location
+        // language preference, set via the detail-view picker.
+        //
+        // Per-mode preference is remembered in localStorage so users who
+        // always send in the same language don't have to re-pick every time.
+        // Stored under WNEXT_BROADCAST_LANG_<mode> — separate keys per mode
+        // because Lee might prefer 中文 for Favorites (talking to family)
+        // but BM for All-locations (talking to workers).
+        // ============================================================
+        
+        const _pendingBroadcastMode = { mode: null };
+        
+        // Storage helpers for per-mode language preference. Each broadcast
+        // mode gets its own key. Read on picker open to pre-highlight the
+        // last choice; written on pick.
+        const _broadcastLangKey = (mode) => `WNEXT_BROADCAST_LANG_${mode}`;
+        const _getLastBroadcastLang = (mode) => {
+            try {
+                const v = localStorage.getItem(_broadcastLangKey(mode));
+                return (v === 'zh' || v === 'en' || v === 'ms') ? v : null;
+            } catch (e) { return null; }
+        };
+        const _setLastBroadcastLang = (mode, lang) => {
+            try { localStorage.setItem(_broadcastLangKey(mode), lang); }
+            catch (e) {}
+        };
+        
+        // Pre-highlight the language the user picked last time for this mode.
+        // Subtle visual cue: bolder background color on the last-used button.
+        const _highlightLastLang = (mode) => {
+            const ids = ['blang-zh', 'blang-en', 'blang-ms'];
+            const last = _getLastBroadcastLang(mode);
+            for (const id of ids) {
+                const btn = document.getElementById(id);
+                if (!btn) continue;
+                // Reset to neutral
+                btn.classList.remove('ring-2', 'ring-blue-400');
+            }
+            if (last) {
+                const btn = document.getElementById('blang-' + last);
+                if (btn) btn.classList.add('ring-2', 'ring-blue-400');
+            }
+        };
+        
+        window.handleBroadcastClick = (mode) => {
+            // Open the language picker. The user's pick advances to the
+            // inner dispatcher; cancel closes the modal and does nothing.
+            _pendingBroadcastMode.mode = mode;
+            const modal = document.getElementById('broadcast-lang-modal');
+            if (!modal) {
+                // Defensive — if the modal markup somehow isn't on the page,
+                // fall back to direct dispatch with default language so the
+                // button still works.
+                console.warn('[broadcast-lang] modal missing, falling back to default');
+                _handleBroadcastClickInner(mode, null);
+                return;
+            }
+            _highlightLastLang(mode);
+            modal.classList.remove('hidden');
+        };
+        
+        window.pickBroadcastLang = (lang) => {
+            const mode = _pendingBroadcastMode.mode;
+            const modal = document.getElementById('broadcast-lang-modal');
+            if (modal) modal.classList.add('hidden');
+            _pendingBroadcastMode.mode = null;
+            if (!mode) return;  // No pending mode, nothing to do
+            _setLastBroadcastLang(mode, lang);
+            // Now dispatch the actual broadcast with the chosen greeting language.
+            _handleBroadcastClickInner(mode, lang);
+        };
+        
+        window.cancelBroadcastLang = () => {
+            const modal = document.getElementById('broadcast-lang-modal');
+            if (modal) modal.classList.add('hidden');
+            _pendingBroadcastMode.mode = null;
+        };
+        
         window.downloadInfographic = async (e) => {
             if(e) e.preventDefault(); const btn = document.getElementById('dl-btn'); if(btn.disabled) return;
             try {
