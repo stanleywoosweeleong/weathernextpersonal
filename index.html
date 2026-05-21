@@ -6590,20 +6590,78 @@
                 const text = window.buildBroadcastText(mode);
                 
                 // Copy to clipboard for users who want to paste manually.
+                // Useful as a fallback if the share dispatch below is dismissed
+                // or fails for any reason — the text is still on their clipboard.
                 try {
                     await navigator.clipboard.writeText(text);
                 } catch(e) {
                     console.warn('Clipboard write failed:', e);
                 }
                 
-                // Open WhatsApp with text pre-filled.
-                const waUrl = (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent))
-                    ? `https://wa.me/?text=${encodeURIComponent(text)}`
-                    : `https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-                try {
-                    window.open(waUrl, '_blank', 'noopener,noreferrer');
-                } catch(e) {
-                    console.warn('WhatsApp open failed:', e);
+                // ============================================================
+                // WhatsApp dispatch — patched to fix the mobile "tap twice" bug
+                // ------------------------------------------------------------
+                // History of this code path:
+                //   Original: window.open(waUrl) after the async work completed.
+                //   Bug: on mobile, ensemble fetches can take 3-8 seconds. By the
+                //   time window.open is called, the user-activation token granted
+                //   by the original button tap has expired, so the mobile browser
+                //   silently blocks the navigation. User sees "Copied to
+                //   clipboard" toast but WhatsApp never opens — they have to tap
+                //   the broadcast button a second time, at which point the data
+                //   is already cached and dispatch happens fast enough to keep
+                //   the activation alive.
+                //
+                //   Fix (mirroring the original weathernext/ codebase patch):
+                //   use navigator.share() on mobile instead of window.open. The
+                //   Web Share API survives long-async better because the OS
+                //   treats opening its own native share sheet as a system-level
+                //   handoff rather than a programmatic navigation. Desktop keeps
+                //   window.open since (a) desktop popup blockers are less
+                //   aggressive about async window.open and (b) navigator.share
+                //   support on desktop is spotty.
+                //
+                // The native share sheet shows ALL share targets, not just
+                // WhatsApp — so user picks WhatsApp from the sheet. Still
+                // technically one extra tap vs direct, but reliably one tap,
+                // not the previous "tap twice then maybe works."
+                // ============================================================
+                const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+                let dispatched = false;
+                
+                if (isMobile && navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: APP_BRANDING.shareTitle,
+                            text: text
+                        });
+                        dispatched = true;
+                    } catch (err) {
+                        // AbortError = user dismissed the share sheet. They made
+                        // an explicit choice not to send; do NOT fall through to
+                        // window.open since that would feel like a bug ("I closed
+                        // it, why is it opening WhatsApp Web now?"). Other errors
+                        // (NotAllowedError, permission denials, etc.) DO fall
+                        // through so we still get the user to WhatsApp somehow.
+                        if (err && err.name === 'AbortError') {
+                            dispatched = true;  // treat as handled
+                        } else {
+                            console.warn('navigator.share failed, falling back:', err);
+                        }
+                    }
+                }
+                
+                if (!dispatched) {
+                    // Desktop primary path, or mobile fallback when share API
+                    // unavailable / rejected with a non-Abort error.
+                    const waUrl = isMobile
+                        ? `https://wa.me/?text=${encodeURIComponent(text)}`
+                        : `https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                    try {
+                        window.open(waUrl, '_blank', 'noopener,noreferrer');
+                    } catch(e) {
+                        console.warn('WhatsApp open failed:', e);
+                    }
                 }
                 
                 if (typeof window.showToast === 'function') {
