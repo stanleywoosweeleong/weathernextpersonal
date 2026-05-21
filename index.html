@@ -1477,7 +1477,32 @@
             }
         }
         
-        let apiKey = localStorage.getItem('wnext_v41_api_key') || ""; 
+        // ============================================================
+        // SHARED API KEY — soft default for AI features
+        // ------------------------------------------------------------
+        // Receivers of Lee's share link land in the app with zero setup.
+        // Without an embedded default key, they'd see AI features prompt
+        // them to enter a Gemini API key — most farmers won't have one,
+        // and the friction would defeat the point of the share.
+        //
+        // This default key is owned by Stanley's `weathernext-e8803`
+        // Google Cloud project, which:
+        //   - Has NO billing attached → zero financial risk from abuse
+        //   - Has HTTP referrer restrictions in place → key only works
+        //     when called from the two GitHub Pages domains
+        //     (stanleywoosweeleong.github.io/weathernextpersonal/* and
+        //      stanleywoosweeleong.github.io/weatherforleesooihon/*)
+        //   - Worst-case abuse: free-tier daily quota burns through,
+        //     AI features stop for everyone until midnight Pacific reset
+        //
+        // Soft default = users can still override via the existing API
+        // Key modal. Their personal key in localStorage takes precedence
+        // over this default. So if anyone wants to use their own quota
+        // (e.g. higher tier), or this shared key ever needs rotation,
+        // existing custom-key users are unaffected.
+        // ============================================================
+        const DEFAULT_API_KEY = 'AIzaSyAprBJMe3aOFsy36-wd98pRp60-C7ctx6Q';
+        let apiKey = localStorage.getItem('wnext_v41_api_key') || DEFAULT_API_KEY;
 
         const WEATHER_CACHE_KEY = `wnext_v41_weather_store`;
         const FAV_CACHE_KEY = `wnext_v41_favs_store`;
@@ -1672,7 +1697,13 @@
 
         // --- UPDATED HELPER FOR API CALLS WITH MODAL SUPPORT ---
         async function fetchGemini(urlNoKey, payload) {
-            let key = apiKey || localStorage.getItem('wnext_v41_api_key') || "";
+            // Resolve key with three-tier fallback:
+            //   1. Currently-active apiKey (set at boot or after user submit)
+            //   2. Whatever localStorage has (in case apiKey global got cleared)
+            //   3. The embedded shared default key
+            // The third tier ensures fresh deep-link receivers can use AI
+            // features without any setup step.
+            let key = apiKey || localStorage.getItem('wnext_v41_api_key') || DEFAULT_API_KEY;
             // Ensure URL doesn't end with & or ?
             const sep = urlNoKey.includes('?') ? '&' : '?';
             const fullUrl = (k) => `${urlNoKey}${sep}key=${k}`;
