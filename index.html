@@ -3695,9 +3695,9 @@
                     try { fetchLandingWeather(); } catch (e) { console.warn('Re-fetch after GPS edit failed (non-fatal):', e); }
                 }
                 
-                if (typeof window.showToast === 'function') {
-                    window.showToast(T.saved || '已保存 / Saved', false);
-                }
+                // No success toast — the modal closing and the list re-rendering
+                // are sufficient feedback that the save worked. An extra toast
+                // was redundant noise on a routine action.
             };
             
             // Dedupe check fires only when GPS actually moved AND there's another
