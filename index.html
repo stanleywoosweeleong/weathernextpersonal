@@ -1232,7 +1232,23 @@
                 catch (e) { return false; }
             })();
             
-            const shouldShow = !hasName && (!hasSeen || (launches > 0 && launches % 5 === 0));
+            // Suppress onboarding entirely on deep-link receive sessions. The
+            // receiver landed here because a friend shared a location with them
+            // — handleIncomingDeepLink opens the location's detail view shortly
+            // after page load, and an onboarding modal slapping over the top
+            // would be both confusing and intrusive ("why is the app asking my
+            // name when I just want to see the forecast?"). They get an
+            // unobtrusive experience on their first arrival; if they later
+            // tap "+ Add to my list" and stay around, the launch-counter
+            // nudge on a subsequent visit will prompt them naturally.
+            const isDeepLinkArrival = (function() {
+                try {
+                    const p = new URLSearchParams(window.location.search);
+                    return p.has('loc') || p.has('lat') || p.has('lng');
+                } catch (e) { return false; }
+            })();
+            
+            const shouldShow = !hasName && !isDeepLinkArrival && (!hasSeen || (launches > 0 && launches % 5 === 0));
             
             if (shouldShow) {
                 setTimeout(() => {
@@ -7010,10 +7026,38 @@
         return /WhatsApp|FBAN|FBAV|FB_IAB|Instagram|Line\//i.test(ua);
       };
 
+      // Suppress the install banner when the user arrived via a deep-link share.
+      // The signal: ?loc=... param in the URL. Receivers came here to view a
+      // friend's forecast and decide whether to add it to their list — they
+      // didn't come here to install an app. Showing the install CTA in this
+      // context creates two problems:
+      //   1. It competes with the actual "+ Add to my list" action they're
+      //      supposed to see (a confusing duplicate CTA)
+      //   2. If they DO tap install, the PWA launches in a separate context
+      //      that may have isolated localStorage (iOS limitation) — losing the
+      //      onboarding flow, the location they were about to add, and the
+      //      name they were going to enter. Empty app, re-prompts everything.
+      //
+      // By suppressing the install prompt on deep-link receives, users either:
+      //   - Use the app in their browser (bookmark if they want), or
+      //   - Install LATER, after they've already set up their name + locations.
+      //     At that point the localStorage state exists and carries over to
+      //     the installed PWA (on Android; iOS still has its quirks but is
+      //     less catastrophic since they'd be installing intentionally, not
+      //     accidentally during a confused first-receive interaction).
+      const isDeepLinkReceive = () => {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          return params.has('loc') || params.has('lat') || params.has('lng');
+        } catch (e) {
+          return false;
+        }
+      };
+
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredInstallPrompt = e;
-        if (!isDismissed() && !isStandalone() && !isInAppBrowser()) {
+        if (!isDismissed() && !isStandalone() && !isInAppBrowser() && !isDeepLinkReceive()) {
           setTimeout(() => {
             const banner = document.getElementById('pwa-install-banner');
             if (banner) banner.classList.add('show');
@@ -7048,7 +7092,7 @@
 
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       const isSafari = /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(navigator.userAgent);
-      if (isIOS && isSafari && !isStandalone() && !isDismissed() && !isInAppBrowser()) {
+      if (isIOS && isSafari && !isStandalone() && !isDismissed() && !isInAppBrowser() && !isDeepLinkReceive()) {
         setTimeout(() => {
           if (!banner) return;
           const title = banner.querySelector('.pwa-title');
