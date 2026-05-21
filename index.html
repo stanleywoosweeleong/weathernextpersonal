@@ -3262,6 +3262,20 @@
                 // we'd duplicate the customLocations row, leaving a phantom entry behind.
                 customLocations = Array.isArray(customLocations) ? customLocations : [];
                 const alreadyInCustom = customLocations.some(l => l.id === loc);
+                const alreadyInHidden = Array.isArray(hiddenIds) && hiddenIds.includes(loc);
+                
+                // Track "user knew about this location BEFORE this share event."
+                // Used by saveSharedLocation to skip auto-favorite for re-shares of
+                // locations the user has previously made decisions about. This is the
+                // single source of truth — checking customLocations inside saveSharedLocation
+                // wouldn't work because by then the entry has been pushed into the array.
+                // Includes both active (alreadyInCustom) and soft-deleted (alreadyInHidden)
+                // entries — both prove the user has previously dealt with this location.
+                if (alreadyInCustom || alreadyInHidden) {
+                    window.preExistingShareIds = window.preExistingShareIds || new Set();
+                    window.preExistingShareIds.add(loc);
+                }
+                
                 if (!alreadyInCustom) {
                     customLocations.push(newLoc);
                 }
@@ -3355,10 +3369,29 @@
                 }
                 console.log('[saveSharedLocation] cleanup', { purgedChanged, hiddenChanged });
                 
-                // Add to favourites — same operation in both modes.
+                // Auto-favorite — but ONLY if this location was genuinely new to the
+                // user when the share arrived. If it was already in their storage
+                // (active or soft-deleted), the user has previously made decisions
+                // about it and we MUST respect whatever favorite state they've set.
+                // Stage 2 spec: "If user received a location that is already in their
+                // localstorage, user don't need to respect the auto favourite rules.
+                // Just keep whatever stage they have for the favourite/unfavourite status."
+                //
+                // The preExistingShareIds set is populated by handleIncomingDeepLink at
+                // the moment the share arrives — that's the only point at which we can
+                // distinguish "user had this before" from "user has this now (because
+                // we just added it)." By the time saveSharedLocation runs, the entry
+                // has already been pushed into customLocations, so checking that array
+                // here would always return true.
+                const wasPreExisting = !!(window.preExistingShareIds && window.preExistingShareIds.has(id));
                 favoriteIds = Array.isArray(favoriteIds) ? favoriteIds : [];
-                if (!favoriteIds.includes(id)) favoriteIds.push(id);
-                console.log('[saveSharedLocation] favoriteIds after push', { ids: favoriteIds });
+                if (!wasPreExisting && !favoriteIds.includes(id)) {
+                    favoriteIds.push(id);
+                    console.log('[saveSharedLocation] auto-favorited (new to user)', { id });
+                } else if (wasPreExisting) {
+                    console.log('[saveSharedLocation] skipping auto-favorite (pre-existing for this user)', { id, currentlyFavorited: favoriteIds.includes(id) });
+                }
+                console.log('[saveSharedLocation] favoriteIds after handling', { ids: favoriteIds });
                 
                 // Persist to localStorage. safeSet handles quota errors gracefully.
                 // CUSTOM_CACHE_KEY only written in ephemeral mode (no point writing
