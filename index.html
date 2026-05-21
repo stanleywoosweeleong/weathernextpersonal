@@ -664,7 +664,12 @@
                 </div>
             </div>
             <div class="min-w-0">
-                <h1 id="app-h1" onclick="window.openSearch()" oncontextmenu="event.preventDefault(); window.openProfileModal && window.openProfileModal();" class="text-xl font-black tracking-tighter leading-none text-slate-900 truncate cursor-pointer active:opacity-60 transition-opacity select-none">农友天气 <span class="text-[10px] text-slate-300 align-top ml-0.5">🔍</span></h1>
+                <div class="flex items-center gap-1.5">
+                    <h1 id="app-h1" onclick="window.openSearch()" class="text-xl font-black tracking-tighter leading-none text-slate-900 truncate cursor-pointer active:opacity-60 transition-opacity select-none">农友天气 <span class="text-[10px] text-slate-300 align-top ml-0.5">🔍</span></h1>
+                    <button id="edit-name-btn" onclick="event.stopPropagation(); window.openProfileModal && window.openProfileModal();" aria-label="Edit display name / 修改名字" title="Edit name / 修改名字" class="shrink-0 p-1 text-slate-300 active:text-slate-600 hover:text-slate-500 transition-colors -ml-0.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                </div>
                 <!-- Added flex-wrap to prevent items being cut off -->
                 <div class="flex flex-wrap items-center gap-1 mt-2">
                     <span id="pill-seamless" onclick="window.setModel('best_match')" class="model-pill">AI Model</span>
@@ -830,11 +835,11 @@
             <p id="profile-modal-intro" class="text-xs text-slate-500 mb-3">输入您的名字，让这个 app 属于您。<br>Enter your name to personalize this app.</p>
             
             <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">显示名字 / Display name</label>
-            <input type="text" id="profile-name-input" class="w-input mb-2" placeholder="李俊霖 / Lee Sooi Hon" maxlength="40" onkeydown="if(event.key==='Enter') window.submitProfile()">
+            <input type="text" id="profile-name-input" class="w-input mb-2" placeholder="您的名字 / Your name" maxlength="40" onkeydown="if(event.key==='Enter') window.submitProfile()">
             <p class="text-[10px] text-slate-400 mb-3">中文、英文、马来文皆可 · Any language works · Max 40 chars</p>
             
             <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">英文/拼音 名字（可选）/ English name (optional)</label>
-            <input type="text" id="profile-name-ascii-input" class="w-input mb-1" placeholder="LeeSooiHon" maxlength="32">
+            <input type="text" id="profile-name-ascii-input" class="w-input mb-1" placeholder="YourName" maxlength="32">
             <p class="text-[10px] text-slate-400 mb-4">仅用于分享截图的文件名（ASCII 字母数字）<br>Used only for shared screenshot filenames (ASCII letters/numbers)</p>
             
             <div class="flex gap-2">
@@ -3696,14 +3701,18 @@
                 if (pool.length === 0) {
                     const totalKnown = getAllLocations().filter(l => !hiddenIds.includes(l.id)).length;
                     if (totalKnown === 0) {
-                        // Truly nothing — generic build, no locations added yet
+                        // Truly nothing — generic build, no locations added yet.
+                        // Wayfinding: the add button is the blue square in the
+                        // TOP-LEFT of the header (left of the H1), with a small
+                        // yellow + badge in its lower-right corner. The earlier
+                        // "tap + below" copy was wrong — there's no bottom + button.
                         if (!em) {
                             return '<div class="p-6 text-center">' +
                                    '<div class="text-3xl mb-2">🌱</div>' +
                                    '<div class="text-sm font-black text-slate-700 mb-1">欢迎使用</div>' +
                                    '<div class="text-xs text-slate-500 mb-3">Welcome to 农友天气</div>' +
-                                   '<div class="text-[11px] text-slate-500 leading-relaxed">点击右下角 <span class="font-black text-blue-700">+</span> 添加您的农场</div>' +
-                                   '<div class="text-[11px] text-slate-400 leading-relaxed mt-1">Tap <span class="font-black text-blue-700">+</span> below to add your first farm</div>' +
+                                   '<div class="text-[11px] text-slate-500 leading-relaxed">点击左上角 <span class="inline-block align-middle w-5 h-5 bg-blue-700 rounded mx-0.5 relative"><span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-yellow-400 rounded-full border border-white"></span></span> 添加您的农场</div>' +
+                                   '<div class="text-[11px] text-slate-400 leading-relaxed mt-1">Tap the blue button (top-left) to add your first farm</div>' +
                                    '</div>';
                         } else {
                             return '<div class="p-4 text-center text-xs text-slate-300 font-bold">—</div>';
