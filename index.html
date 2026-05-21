@@ -766,10 +766,20 @@
             <button onclick="document.getElementById('edit-modal').classList.add('hidden')" class="absolute top-3 right-3 p-2 text-slate-300 active:text-slate-500 transition-colors">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
-            <h3 class="text-lg font-black text-slate-900 mb-6">Edit 改名</h3>
+            <h3 class="text-lg font-black text-slate-900 mb-4">Edit 修改地点</h3>
+            
+            <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">名字 / Name</label>
             <input type="text" id="edit-name-en" class="w-input" placeholder="English Name">
-            <input type="text" id="edit-name-zh" class="w-input" placeholder="中文名字">
-            <button onclick="window.saveNameEdit()" class="w-btn-primary mt-2 flex items-center justify-center">
+            <input type="text" id="edit-name-zh" class="w-input mt-2" placeholder="中文名字">
+            
+            <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mt-4 mb-1">GPS 坐标 / Coordinates</label>
+            <div class="flex gap-2">
+                <input type="text" inputmode="decimal" id="edit-lat" class="w-input flex-1" placeholder="纬度 Lat">
+                <input type="text" inputmode="decimal" id="edit-lng" class="w-input flex-1" placeholder="经度 Lng">
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1">小数格式，如 / Decimal format, e.g. 4.04597, 101.96039</p>
+            
+            <button onclick="window.saveNameEdit()" class="w-btn-primary mt-4 flex items-center justify-center">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </button>
         </div>
@@ -3572,8 +3582,155 @@
         let pendingConfirmAction = null;
         window.showConfirm = (msg, action) => { const el = document.getElementById('confirm-modal'); const msgEl = document.getElementById('confirm-msg'); if(el && msgEl) { msgEl.innerText = msg; pendingConfirmAction = action; el.classList.remove('hidden'); } };
         window.closeConfirm = (isConfirmed) => { document.getElementById('confirm-modal').classList.add('hidden'); if (isConfirmed && pendingConfirmAction) { pendingConfirmAction(); } pendingConfirmAction = null; };
-        window.openEditModal = (id) => { editingId = id; const loc = getAllLocations().find(l => l.id === id); const custom = renamedLocations[id]; document.getElementById('edit-name-en').value = custom ? custom.en : (loc.en || ''); document.getElementById('edit-name-zh').value = custom ? custom.zh : (loc.zh || ''); document.getElementById('edit-modal').classList.remove('hidden'); const el = document.getElementById(`content-${id}`); const actions = el?.parentElement.querySelector('.swipe-actions'); if(el) { el.style.transform = `translateX(0)`; if(actions) setTimeout(() => actions.style.visibility = 'hidden', 200); } swipeCurrentId = null; };
-        window.saveNameEdit = () => { if(!editingId) return; const en = document.getElementById('edit-name-en').value.trim(); const zh = document.getElementById('edit-name-zh').value.trim(); if(en) { renamedLocations[editingId] = { en, zh }; safeSet(RENAME_CACHE_KEY, JSON.stringify(renamedLocations)); saveUserData(); renderList(); } document.getElementById('edit-modal').classList.add('hidden'); editingId = null; };
+        window.openEditModal = (id) => { editingId = id; const loc = getAllLocations().find(l => l.id === id); const custom = renamedLocations[id]; document.getElementById('edit-name-en').value = custom ? custom.en : (loc.en || ''); document.getElementById('edit-name-zh').value = custom ? custom.zh : (loc.zh || ''); document.getElementById('edit-lat').value = loc ? String(loc.lat) : ''; document.getElementById('edit-lng').value = loc ? String(loc.lng) : ''; document.getElementById('edit-modal').classList.remove('hidden'); const el = document.getElementById(`content-${id}`); const actions = el?.parentElement.querySelector('.swipe-actions'); if(el) { el.style.transform = `translateX(0)`; if(actions) setTimeout(() => actions.style.visibility = 'hidden', 200); } swipeCurrentId = null; };
+        // saveNameEdit (now: save name + GPS) — handles both the name overlay
+        // (renamedLocations) and the actual coordinate mutation on the underlying
+        // customLocations entry. GPS edits require cache invalidation and a fresh
+        // weather fetch since the cached data was for the OLD coordinates.
+        //
+        // Function name kept as saveNameEdit for HTML compatibility — could be
+        // renamed in a future cleanup pass. The "Name" prefix is now historical.
+        window.saveLocationEdit = async () => {
+            if (!editingId) return;
+            const T = sysT();
+            
+            const en = (document.getElementById('edit-name-en').value || '').trim();
+            const zh = (document.getElementById('edit-name-zh').value || '').trim();
+            const latStr = (document.getElementById('edit-lat').value || '').trim();
+            const lngStr = (document.getElementById('edit-lng').value || '').trim();
+            
+            // ----- VALIDATION -----
+            const lat = parseFloat(latStr);
+            const lng = parseFloat(lngStr);
+            
+            if (isNaN(lat) || isNaN(lng)) {
+                window.showToast(T.invalidCoords, true);
+                return;
+            }
+            if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                window.showToast(T.coordsOutOfRange, true);
+                return;
+            }
+            
+            // Find the customLocations entry to mutate. In the generic build all
+            // editable locations live in customLocations (STABLE_LOCATIONS is
+            // empty). Defensive: if not found, bail with a clear message.
+            const cIdx = Array.isArray(customLocations)
+                ? customLocations.findIndex(l => l.id === editingId)
+                : -1;
+            
+            if (cIdx === -1) {
+                // Should not happen in the generic build, but covers the edge
+                // case where someone edits a baked-in stable location in a
+                // future build where STABLE_LOCATIONS isn't empty. Name edit
+                // still works via the overlay; GPS edit doesn't.
+                console.warn('[edit] location not in customLocations, GPS edit blocked', editingId);
+                window.showToast('GPS edit not supported for this location', true);
+                return;
+            }
+            
+            const currentLoc = customLocations[cIdx];
+            const latChanged = Math.abs(currentLoc.lat - lat) >= 0.0001;
+            const lngChanged = Math.abs(currentLoc.lng - lng) >= 0.0001;
+            const gpsChanged = latChanged || lngChanged;
+            
+            // ----- DEDUPE CHECK -----
+            // Only if GPS actually changed AND another location is within ~11m.
+            // We exclude the location being edited from the check (otherwise it
+            // would always match itself).
+            const proceed = async () => {
+                
+                // ----- APPLY MUTATIONS -----
+                
+                // Name overlay (existing behavior). Only write if at least one
+                // name field is non-empty; preserves the "leave name blank to
+                // skip rename" semantics the original handler had.
+                if (en || zh) {
+                    renamedLocations[editingId] = { en, zh };
+                    safeSet(RENAME_CACHE_KEY, JSON.stringify(renamedLocations));
+                }
+                
+                // GPS mutation on the customLocations entry. Only re-persist
+                // if values actually changed (avoid unnecessary localStorage
+                // writes which can fire QuotaExceededError if storage is full).
+                if (gpsChanged) {
+                    customLocations[cIdx].lat = lat;
+                    customLocations[cIdx].lng = lng;
+                    // em flag gets recomputed in getAllLocations() based on lng,
+                    // so we don't need to update it here.
+                    safeSet(CUSTOM_CACHE_KEY, JSON.stringify(customLocations));
+                    
+                    // Invalidate cached weather for this id — the cached data
+                    // was for the OLD coordinates and is now wrong. Mirrors the
+                    // cleanup pattern used by purgeLocation. Without this, the
+                    // user sees stale weather until the next natural refresh.
+                    if (weatherData[editingId]) delete weatherData[editingId];
+                    if (detailData[editingId]) delete detailData[editingId];
+                    if (window.daysCache && window.daysCache[editingId]) delete window.daysCache[editingId];
+                    if (window.confidenceCache && window.confidenceCache[editingId]) delete window.confidenceCache[editingId];
+                    
+                    // Persistent caches too.
+                    try { safeSet(WEATHER_CACHE_KEY, JSON.stringify(weatherData)); } catch (e) {}
+                    try {
+                        const detailBlob = safeGetJson(DETAIL_CACHE_KEY, {});
+                        let changed = false;
+                        for (const k in detailBlob) {
+                            if (k.startsWith(editingId + '__')) {
+                                delete detailBlob[k];
+                                changed = true;
+                            }
+                        }
+                        if (changed) safeSet(DETAIL_CACHE_KEY, JSON.stringify(detailBlob));
+                    } catch (e) {}
+                }
+                
+                saveUserData();
+                renderList();
+                document.getElementById('edit-modal').classList.add('hidden');
+                editingId = null;
+                
+                // Re-fetch weather for the new coordinates if they changed.
+                // Best-effort: don't block the modal close on the fetch.
+                if (gpsChanged && typeof fetchLandingWeather === 'function') {
+                    try { fetchLandingWeather(); } catch (e) { console.warn('Re-fetch after GPS edit failed (non-fatal):', e); }
+                }
+                
+                if (typeof window.showToast === 'function') {
+                    window.showToast(T.saved || '已保存 / Saved', false);
+                }
+            };
+            
+            // Dedupe check fires only when GPS actually moved AND there's another
+            // entry within ~11m. The warning gives the user an explicit out
+            // (in case they meant a different location and mistyped), but doesn't
+            // block — they may have a legitimate reason for two nearby pins.
+            if (gpsChanged) {
+                const nearbyMatch = (typeof getAllLocations === 'function')
+                    ? getAllLocations().find(l =>
+                        l.id !== editingId &&
+                        typeof l.lat === 'number' && typeof l.lng === 'number' &&
+                        Math.abs(l.lat - lat) < 0.0001 &&
+                        Math.abs(l.lng - lng) < 0.0001
+                    )
+                    : null;
+                
+                if (nearbyMatch) {
+                    const nearbyName = (renamedLocations[nearbyMatch.id]?.zh)
+                        || (renamedLocations[nearbyMatch.id]?.en)
+                        || nearbyMatch.zh || nearbyMatch.en || nearbyMatch.id;
+                    const msg = `这个位置非常接近「${nearbyName}」。\n是否继续？\n\nThese coordinates are very close to "${nearbyName}".\nContinue?`;
+                    window.showConfirm(msg, proceed);
+                    return;
+                }
+            }
+            
+            // No dedupe trigger, or GPS unchanged — proceed directly.
+            await proceed();
+        };
+        
+        // Back-compat alias: existing HTML buttons call window.saveNameEdit().
+        // Point them at the expanded handler.
+        window.saveNameEdit = window.saveLocationEdit;
         window.deleteLocation = (id) => { if(!hiddenIds.includes(id)) { hiddenIds.push(id); safeSet(HIDDEN_CACHE_KEY, JSON.stringify(hiddenIds)); saveUserData(); renderList(); } swipeCurrentId = null; };
         window.restoreLocation = (id) => { const idx = hiddenIds.indexOf(id); if(idx > -1) { hiddenIds.splice(idx, 1); safeSet(HIDDEN_CACHE_KEY, JSON.stringify(hiddenIds)); saveUserData(); if(!document.getElementById('view-recycle').classList.contains('hidden')) { window.renderRecycleView(); } renderList(); fetchLandingWeather(); } };
 
