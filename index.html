@@ -221,7 +221,7 @@
             position: absolute;
             top: 0; bottom: 0; right: 0;
             display: flex;
-            width: 160px; /* Width of actions area */
+            width: 240px; /* Width of actions area — 80px × 3 buttons (share + edit + delete) */
             z-index: 1;
             visibility: hidden; /* HIDDEN BY DEFAULT to prevent flashing during scroll */
         }
@@ -238,6 +238,7 @@
             border: none;
             text-transform: uppercase;
         }
+        .btn-share { background-color: #10b981; }   /* green — send/share via WhatsApp */
         .btn-edit { background-color: #3b82f6; }
         .btn-delete { background-color: #ef4444; }
 
@@ -3029,7 +3030,7 @@
              if (swipeDirection === 'vertical') { if (swipeCurrentId !== id) { el.style.transform = `translateX(0)`; if(actions) actions.style.visibility = 'hidden'; } return; }
              el.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
              const currentX = e.changedTouches[0].clientX; const diff = currentX - swipeStartX;
-             if (diff < -60 && swipeDirection === 'horizontal') { el.style.transform = `translateX(-160px)`; swipeCurrentId = id; if(actions) actions.style.visibility = 'visible'; setTimeout(() => isSwiping = false, 50); } else { el.style.transform = `translateX(0)`; swipeCurrentId = null; if(actions) setTimeout(() => actions.style.visibility = 'hidden', 200); }
+             if (diff < -60 && swipeDirection === 'horizontal') { el.style.transform = `translateX(-240px)`; swipeCurrentId = id; if(actions) actions.style.visibility = 'visible'; setTimeout(() => isSwiping = false, 50); } else { el.style.transform = `translateX(0)`; swipeCurrentId = null; if(actions) setTimeout(() => actions.style.visibility = 'hidden', 200); }
         };
 
         // NEW: Handle Right Click (Context Menu) to Toggle Edit/Delete options
@@ -3059,7 +3060,7 @@
             } else {
                 // Open
                 el.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
-                el.style.transform = `translateX(-160px)`;
+                el.style.transform = `translateX(-240px)`;
                 swipeCurrentId = id;
                 if(actions) actions.style.visibility = 'visible';
             }
@@ -3767,7 +3768,7 @@
                 }
                 return pool.map(s => {
                     const isFav = favoriteIds.includes(s.id); const custom = renamedLocations[s.id]; const nameEn = custom ? custom.en : s.en; const nameZh = custom ? custom.zh : s.zh;
-                    return `<div class="list-item-wrapper"><div class="swipe-actions"><button class="action-btn btn-edit" onclick="window.openEditModal('${s.id}')"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="action-btn btn-delete" onclick="window.deleteLocation('${s.id}')"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></div><div class="list-item-content ${isFav?'is-favorite':''}" id="content-${s.id}" ontouchstart="window.handleTouchStart(event, '${s.id}')" ontouchmove="window.handleTouchMove(event, '${s.id}')" ontouchend="window.handleTouchEnd(event, '${s.id}')" oncontextmenu="window.handleContextMenu(event, '${s.id}')" onclick="window.handleItemClick('${s.id}')"><button class="pin-btn" onclick="event.stopPropagation(); window.toggleFavorite('${s.id}')"><svg class="pin-icon" width="22" height="22" viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button><div class="name-label-en">${nameEn}</div>${nameZh ? `<div class="name-label-zh">${nameZh}</div>` : ''}<div class="flex gap-10 mt-6"><div class="flex flex-col"><span class="text-[9px] font-black text-slate-400 uppercase mb-2">温度</span><span id="t-${s.id}" class="text-[17px] font-black tabular-nums transition-colors">--</span></div><div class="flex flex-col"><span class="text-[9px] font-black text-slate-400 uppercase mb-2">降雨</span><span id="p-${s.id}" class="text-[17px] font-black text-blue-900 tabular-nums">--</span></div></div></div></div>`;
+                    return `<div class="list-item-wrapper"><div class="swipe-actions"><button class="action-btn btn-share" onclick="window.shareLocation('${s.id}')" aria-label="Share location / 分享地点"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button><button class="action-btn btn-edit" onclick="window.openEditModal('${s.id}')"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="action-btn btn-delete" onclick="window.deleteLocation('${s.id}')"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></div><div class="list-item-content ${isFav?'is-favorite':''}" id="content-${s.id}" ontouchstart="window.handleTouchStart(event, '${s.id}')" ontouchmove="window.handleTouchMove(event, '${s.id}')" ontouchend="window.handleTouchEnd(event, '${s.id}')" oncontextmenu="window.handleContextMenu(event, '${s.id}')" onclick="window.handleItemClick('${s.id}')"><button class="pin-btn" onclick="event.stopPropagation(); window.toggleFavorite('${s.id}')"><svg class="pin-icon" width="22" height="22" viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button><div class="name-label-en">${nameEn}</div>${nameZh ? `<div class="name-label-zh">${nameZh}</div>` : ''}<div class="flex gap-10 mt-6"><div class="flex flex-col"><span class="text-[9px] font-black text-slate-400 uppercase mb-2">温度</span><span id="t-${s.id}" class="text-[17px] font-black tabular-nums transition-colors">--</span></div><div class="flex flex-col"><span class="text-[9px] font-black text-slate-400 uppercase mb-2">降雨</span><span id="p-${s.id}" class="text-[17px] font-black text-blue-900 tabular-nums">--</span></div></div></div></div>`;
                 }).join('');
             };
             const lwEl = document.getElementById('list-west'); const leEl = document.getElementById('list-east'); const binCountEl = document.getElementById('tab-bin-count');
@@ -5419,7 +5420,13 @@
         // ============================================================
         const buildShareText = (ids) => {
             const lines = [];
-            const BASE_URL = 'https://stanleywoosweeleong.github.io/weathernext/';
+            // BASE_URL derived from window.location so deep links always point to
+            // the same deploy that generated them. Previously hardcoded to the
+            // old "/weathernext/" path which broke shares from the generic
+            // /weathernextpersonal/ build (and would break any future personalized
+            // builds with different paths). Strip trailing index.html if present
+            // so we always get the directory URL.
+            const BASE_URL = (window.location.origin + window.location.pathname).replace(/index\.html?$/i, '');
             
             for (const lid of ids) {
                 const days = (window.daysCache || {})[lid];
@@ -5646,7 +5653,7 @@
         };
         
         // Build the bulk broadcast text. mode is 'favorites' or 'allStable'.
-        window.buildBroadcastText = (mode) => {
+        window.buildBroadcastText = (mode, idsOverride) => {
             const lang = (typeof getLang === 'function') ? getLang('default') : 'zh';
             const labels = TRANS[lang] || TRANS.zh;
             
@@ -5757,7 +5764,13 @@
             
             // Determine which location ids to include.
             let ids = [];
-            if (mode === 'favorites') {
+            // idsOverride is used by window.shareLocation() to render a single-
+            // location invite message using the same per-day formatting as the
+            // "All Stable" broadcast. When provided, it short-circuits the
+            // mode-based selection below — caller has already decided the ids.
+            if (Array.isArray(idsOverride) && idsOverride.length > 0) {
+                ids = idsOverride.slice();
+            } else if (mode === 'favorites') {
                 ids = Array.isArray(favoriteIds) ? favoriteIds.slice() : [];
                 // Filter out hidden ones (recycle bin) and any not in getAllLocations.
                 const visible = getAllLocations().filter(l => !hiddenIds.includes(l.id));
@@ -6168,6 +6181,197 @@
             sections.push('Data: ecmwf.int · open-meteo.com');
             
             return sections.join('\n');
+        };
+        
+        // ============================================================
+        // SHARE A SINGLE LOCATION — invite a friend
+        // ------------------------------------------------------------
+        // New feature for the personalizable build: lets a user share one
+        // location to a friend via WhatsApp. The message contains:
+        //   1. Inviter line: "{userName} 邀请您查看 农友天气" / "{userName}
+        //      invites you to WeatherNext" (skipped if no name set; uses a
+        //      generic "农友天气邀请 · WeatherNext Invitation" instead)
+        //   2. Location name bilingual
+        //   3. 1-day forecast detail (same format as the All Stable broadcast)
+        //   4. Deep link with id + lat/lng + en/zh so the recipient's app can
+        //      add the location to their list with one tap
+        //
+        // The forecast detail is generated by calling buildBroadcastText('allStable',
+        // [id]) — the idsOverride parameter we added lets us reuse the full
+        // bilingual / mm-threshold / storm-window / confidence-marker rendering
+        // pipeline instead of duplicating it. We then strip the broadcast header
+        // (greeting + date) and append our invite header + deep link instead.
+        //
+        // Receiver flow is the existing handleIncomingDeepLink path — they tap
+        // the link, the app opens (or installs first if they don't have it),
+        // and the location detail modal appears with "+ Add to my list" button.
+        // ============================================================
+        window.buildLocationInviteText = (id) => {
+            // Resolve location for name + lat/lng
+            const loc = (typeof getAllLocations === 'function')
+                ? getAllLocations().find(l => l.id === id)
+                : null;
+            if (!loc) return null;
+            
+            const rn = (typeof renamedLocations !== 'undefined' && renamedLocations) ? renamedLocations[id] : null;
+            const resolvedEn = (rn && rn.en) || loc.en || '';
+            const resolvedZh = (rn && rn.zh) || loc.zh || '';
+            const locName = resolvedEn && resolvedZh
+                ? `${resolvedEn} / ${resolvedZh}`
+                : (resolvedEn || resolvedZh || id);
+            
+            // Compose the message. Lines built as an array then joined for
+            // clean control over blank-line spacing.
+            const lines = [];
+            
+            // 1. Inviter header — skipped entirely if no name set, since
+            //    "{generic} invites you" reads awkwardly. Better to lead
+            //    with the location and a one-line invitation hook.
+            //    Brand: 农友天气 in Chinese, WeatherNext in English — matches the
+            //    convention used in the WhatsApp broadcast header (@ 农友天气
+            //    WeatherNext). Always name the actual app so recipients connect
+            //    "what I was sent" with "what I'm being invited to install."
+            const userName = (typeof getUserName === 'function') ? getUserName() : null;
+            if (userName) {
+                lines.push(`${userName} 邀请您查看 农友天气`);
+                lines.push(`${userName} invites you to WeatherNext`);
+            } else {
+                lines.push('农友天气邀请 · WeatherNext Invitation');
+            }
+            lines.push('');
+            
+            // 2. Location name as a clear header
+            lines.push(`📍 ${locName}`);
+            lines.push('');
+            
+            // 3. Forecast detail — delegate to buildBroadcastText with override.
+            //    Then strip the greeting header (first 2-3 lines) since we
+            //    have our own. The location section (📍 line + per-day lines)
+            //    follows the header in the broadcast output.
+            let forecastBlock = '';
+            try {
+                const broadcastText = window.buildBroadcastText('allStable', [id]);
+                if (broadcastText) {
+                    // Split into lines, find the 📍 line that introduces this
+                    // location's section, take from there to before the
+                    // trailing "Data: ..." line.
+                    const allLines = broadcastText.split('\n');
+                    const locStartIdx = allLines.findIndex(l => l.startsWith('📍'));
+                    const dataIdx = allLines.findIndex(l => l.startsWith('Data:'));
+                    if (locStartIdx > -1 && dataIdx > -1) {
+                        // Skip our own 📍 line (locStartIdx) since we already
+                        // added the bilingual location header above. Take the
+                        // forecast lines that follow it.
+                        const forecastLines = allLines.slice(locStartIdx + 1, dataIdx)
+                            .join('\n')
+                            .replace(/^\n+|\n+$/g, '');  // trim leading/trailing blanks
+                        if (forecastLines) {
+                            forecastBlock = forecastLines;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[shareLocation] forecast block generation failed', err);
+                // Non-fatal — the invite still works without the forecast snippet,
+                // it just won't have today's preview. Better than crashing.
+            }
+            if (forecastBlock) {
+                lines.push(forecastBlock);
+                lines.push('');
+            }
+            
+            // 4. Deep link — same parameter format as buildShareText's deep
+            //    links so handleIncomingDeepLink picks them up identically.
+            //    BASE_URL derived from window.location so it always points to
+            //    the same deploy this share originated from.
+            const BASE_URL = (window.location.origin + window.location.pathname).replace(/index\.html?$/i, '');
+            let params = `?loc=${encodeURIComponent(id)}&lat=${loc.lat}&lng=${loc.lng}`;
+            if (resolvedEn) params += `&en=${encodeURIComponent(resolvedEn)}`;
+            if (resolvedZh) params += `&zh=${encodeURIComponent(resolvedZh)}`;
+            if (!resolvedEn && !resolvedZh) params += `&name=${encodeURIComponent(locName)}`;
+            
+            lines.push('👉 添加到我的清单 / Add to my list:');
+            lines.push(`${BASE_URL}${params}`);
+            
+            return lines.join('\n');
+        };
+        
+        // Share a location to WhatsApp. Mirrors the UNIFIED SHARE PATH used by
+        // the screenshot-share path: native share on mobile, wa.me URL on desktop.
+        // No image here — invite is text-only, lighter than the screenshot share.
+        window.shareLocation = async (id) => {
+            try {
+                // Pre-fetch the day data for this location if we don't have it.
+                // The forecast block depends on window.daysCache[id]; if the user
+                // hasn't opened this location's detail view yet, the cache won't
+                // have it. fetchLandingWeather populates daysCache for the home
+                // list, so for any location displayed in the West/East columns
+                // we should already have data.
+                const cache = window.daysCache || {};
+                if (!cache[id] || cache[id].length === 0) {
+                    // Best-effort fetch via existing handleBroadcastClick infrastructure.
+                    // If handleBroadcastClick has a fetch helper exposed, use it; otherwise
+                    // just continue without the forecast — the link itself is the main thing.
+                    if (typeof window.handleBroadcastClick === 'function') {
+                        // Lightweight: trigger landing weather refresh and hope it covers us
+                        if (typeof fetchLandingWeather === 'function') {
+                            try { await fetchLandingWeather(); } catch (e) {}
+                        }
+                    }
+                }
+                
+                const text = window.buildLocationInviteText(id);
+                if (!text) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Location not found', true);
+                    }
+                    return;
+                }
+                
+                // Close any open swipe-actions UI so it doesn't linger.
+                const el = document.getElementById(`content-${id}`);
+                if (el) {
+                    el.style.transform = 'translateX(0)';
+                    const actions = el.parentElement && el.parentElement.querySelector('.swipe-actions');
+                    if (actions) setTimeout(() => { actions.style.visibility = 'hidden'; }, 200);
+                }
+                if (typeof swipeCurrentId !== 'undefined') swipeCurrentId = null;
+                
+                // Dispatch — native share preferred (lets user pick contact via system
+                // sheet), wa.me fallback for desktop or browsers without share API.
+                if (navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: APP_BRANDING.shareTitle,
+                            text: text
+                        });
+                        return;
+                    } catch (err) {
+                        // AbortError = user cancelled — fine, just don't fall through to
+                        // the desktop path because they made an explicit choice.
+                        if (err && err.name === 'AbortError') return;
+                        console.warn('[shareLocation] native share failed, falling back', err);
+                    }
+                }
+                
+                // Desktop / fallback path. wa.me works on both mobile and desktop:
+                //   mobile → opens WhatsApp app with text pre-filled
+                //   desktop → opens WhatsApp Web with text pre-filled
+                const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+                try {
+                    window.open(waUrl, '_blank', 'noopener,noreferrer');
+                } catch (err) {
+                    console.warn('[shareLocation] window.open failed', err);
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Could not open WhatsApp', true);
+                    }
+                }
+            } catch (err) {
+                console.error('[shareLocation] unexpected error', err);
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Share failed', true);
+                }
+            }
         };
         
         // ============================================================
