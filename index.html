@@ -6415,12 +6415,31 @@
                     const topLines = [];
                     const msLines = [];
                     for (const e of rainEntries) {
+                        // BUGFIX (v1.0.144): fmtClockHour does h24 % 24, so the
+                        // smart window's tomorrow-overnight hours (indices 24-27
+                        // = tomorrow 00:00-03:00) rendered as a bare "12am/1am/
+                        // 2am/3am" — visually identical to TODAY's small hours.
+                        // An afternoon broadcast therefore looked like it ended
+                        // with today's past info instead of tomorrow's overnight.
+                        // Fix: prefix hours that cross into tomorrow with the
+                        // localized "tomorrow" marker.
+                        //
+                        // IMPORTANT: only the SMART WINDOW (useSmart && dayIdx 0)
+                        // mixes today + tomorrow in one list, so only it needs
+                        // the marker. The 3-day favourites report's days 2 & 3
+                        // use full-day windows (startHour = dayIdx*24), where
+                        // hour indices are >=24 but already belong wholly to
+                        // their own day and have their own day heading — marking
+                        // them "tomorrow" would be wrong. So gate on useSmart.
+                        const crossesToTomorrow = useSmart && dayIdx === 0 && e.hour >= 24;
                         const clock = fmtClockHour(e.hour);
+                        const topClock = crossesToTomorrow ? `${V.tomorrow} ${clock}` : clock;
+                        const msClock  = crossesToTomorrow ? `Esok ${clock}` : clock;
                         const mmStr = e.cls.showMm ? `, ${Math.round(e.mm * 10) / 10}mm` : '';
                         const topLabel = locLang === 'en' ? e.cls.en : e.cls.zh;
-                        topLines.push(`${clock} ${topLabel}${mmStr}`);
+                        topLines.push(`${topClock} ${topLabel}${mmStr}`);
                         if (includeMalay) {
-                            msLines.push(`${clock} ${e.cls.ms}${mmStr}`);
+                            msLines.push(`${msClock} ${e.cls.ms}${mmStr}`);
                         }
                     }
                     
