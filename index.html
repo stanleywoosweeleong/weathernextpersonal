@@ -138,8 +138,8 @@
         header { padding-top: var(--safe-top); height: calc(105px + var(--safe-top)); }
         footer { padding-bottom: var(--safe-bottom); height: calc(110px + var(--safe-bottom)); }
 
-        .name-label-en { font-size: 22px; font-weight: 900; color: #0f172a; text-transform: uppercase; line-height: 1.1; letter-spacing: -0.02em; }
-        .name-label-zh { font-size: 20px; font-weight: 900; color: #1d4ed8; line-height: 1.1; margin-top: 4px; }
+        .name-label-en { font-size: 22px; font-weight: 900; color: #0f172a; text-transform: uppercase; line-height: 1.1; letter-spacing: -0.02em; overflow-wrap: anywhere; word-break: break-word; }
+        .name-label-zh { font-size: 20px; font-weight: 900; color: #1d4ed8; line-height: 1.1; margin-top: 4px; overflow-wrap: anywhere; word-break: break-word; }
 
         /* ============================================================
            MOBILE LAYOUT FIXES
@@ -221,9 +221,31 @@
             position: absolute;
             top: 0; bottom: 0; right: 0;
             display: flex;
-            width: 240px; /* Width of actions area — 80px × 3 buttons (share + edit + delete) */
+            width: 132px; /* Width of actions area — 44px × 3 buttons. 44px is the iOS minimum tap target; 132px fits inside the half-width West/East column even on iPhone SE while leaving a grabbable card sliver. */
             z-index: 1;
             visibility: hidden; /* HIDDEN BY DEFAULT to prevent flashing during scroll */
+        }
+
+        /* ============================================================
+           DESKTOP behaviour (wide viewport, no swipe gesture).
+           On desktop the West/East columns are very wide, so sliding the
+           whole card left to reveal the action bar clips the location
+           name off the left edge. Instead the action bar appears pinned
+           to the card right edge; the card reserves space for it via
+           padding so nothing is hidden underneath. The .actions-open
+           class is toggled on the wrapper by the open/close logic.
+           ============================================================ */
+        @media (min-width: 900px) {
+            .swipe-actions { width: 210px; z-index: 1; }
+            .list-item-wrapper.actions-open .swipe-actions {
+                z-index: 30; visibility: visible !important;
+            }
+            .list-item-wrapper.actions-open .list-item-content {
+                transform: translateX(0) !important;
+                padding-right: 234px !important;
+                transition: padding-right 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+            }
+            .action-btn svg { width: 34px; height: 34px; }
         }
 
         .action-btn {
@@ -3089,17 +3111,53 @@
         let isSwiping = false;
         let swipeDirection = null;
 
+        // Width the card slides open by. Must match .swipe-actions width in CSS.
+        const SWIPE_OPEN_PX = 132;
+        // Offset the swiped card was at when the gesture began (0 closed, -132 open).
+        let swipeStartOffset = 0;
+
+        // Desktop = wide viewport. On desktop the columns are very wide, so the
+        // card does NOT slide (that clips its content). The action bar overlays
+        // the card right edge instead, toggled via the .actions-open class.
+        const isDesktopLayout = () => window.matchMedia('(min-width: 900px)').matches;
+
+        const openCardActions = (id) => {
+            const el = document.getElementById(`content-${id}`);
+            const wrap = el?.parentElement;
+            const actions = wrap?.querySelector('.swipe-actions');
+            if (!el || !wrap) return;
+            el.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
+            if (isDesktopLayout()) {
+                el.style.transform = 'translateX(0)';
+                wrap.classList.add('actions-open');
+                if (actions) actions.style.visibility = 'visible';
+            } else {
+                el.style.transform = `translateX(-${SWIPE_OPEN_PX}px)`;
+                if (actions) actions.style.visibility = 'visible';
+            }
+            swipeCurrentId = id;
+        };
+
+        const closeCardActions = (id) => {
+            const el = document.getElementById(`content-${id}`);
+            const wrap = el?.parentElement;
+            const actions = wrap?.querySelector('.swipe-actions');
+            if (el) {
+                el.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
+                el.style.transform = 'translateX(0)';
+            }
+            if (wrap) wrap.classList.remove('actions-open');
+            if (actions) setTimeout(() => { actions.style.visibility = 'hidden'; }, 200);
+            if (swipeCurrentId === id) swipeCurrentId = null;
+        };
+
         window.handleTouchStart = (e, id) => {
             if (e.target.closest('.pin-btn')) return;
             const el = document.getElementById(`content-${id}`);
             if(!el) return;
-            if(swipeCurrentId && swipeCurrentId !== id) {
-                 const other = document.getElementById(`content-${swipeCurrentId}`);
-                 const otherActions = other?.parentElement.querySelector('.swipe-actions');
-                 if(other) { other.style.transform = `translateX(0)`; if(otherActions) setTimeout(() => otherActions.style.visibility = 'hidden', 200); }
-                 swipeCurrentId = null;
-            }
-            swipeStartX = e.touches[0].clientX; swipeStartY = e.touches[0].clientY; isSwiping = false; swipeDirection = null; 
+            if(swipeCurrentId && swipeCurrentId !== id) { closeCardActions(swipeCurrentId); }
+            swipeStartX = e.touches[0].clientX; swipeStartY = e.touches[0].clientY; isSwiping = false; swipeDirection = null;
+            swipeStartOffset = (swipeCurrentId === id) ? -SWIPE_OPEN_PX : 0;
         };
 
         window.handleTouchMove = (e, id) => {
@@ -3110,58 +3168,43 @@
                 if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 10) {
                     swipeDirection = 'horizontal';
                     const actions = el.parentElement.querySelector('.swipe-actions'); if(actions) actions.style.visibility = 'visible';
-                    el.style.transition = 'none'; 
+                    el.style.transition = 'none';
                 } else if (Math.abs(diffY) > 10) { swipeDirection = 'vertical'; }
             }
             if (swipeDirection === 'horizontal') {
-                if (diffX < 0) { isSwiping = true; const translateX = Math.max(diffX, -160); el.style.transform = `translateX(${translateX}px)`; if (e.cancelable) e.preventDefault(); }
+                isSwiping = true;
+                if (isDesktopLayout()) { if (e.cancelable) e.preventDefault(); return; }
+                let translateX = swipeStartOffset + diffX;
+                translateX = Math.max(-SWIPE_OPEN_PX, Math.min(0, translateX));
+                el.style.transform = `translateX(${translateX}px)`;
+                if (e.cancelable) e.preventDefault();
             }
         };
 
         window.handleTouchEnd = (e, id) => {
-             const el = document.getElementById(`content-${id}`); const actions = el?.parentElement.querySelector('.swipe-actions'); if(!el) return;
-             if (swipeDirection === 'vertical') { if (swipeCurrentId !== id) { el.style.transform = `translateX(0)`; if(actions) actions.style.visibility = 'hidden'; } return; }
-             el.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
-             const currentX = e.changedTouches[0].clientX; const diff = currentX - swipeStartX;
-             if (diff < -60 && swipeDirection === 'horizontal') { el.style.transform = `translateX(-240px)`; swipeCurrentId = id; if(actions) actions.style.visibility = 'visible'; setTimeout(() => isSwiping = false, 50); } else { el.style.transform = `translateX(0)`; swipeCurrentId = null; if(actions) setTimeout(() => actions.style.visibility = 'hidden', 200); }
+             const el = document.getElementById(`content-${id}`); if(!el) return;
+             if (swipeDirection === 'vertical') { if (swipeCurrentId !== id) closeCardActions(id); return; }
+             if (swipeDirection !== 'horizontal') { return; }
+             if (isDesktopLayout()) { setTimeout(() => isSwiping = false, 50); return; }
+             const currentX = e.changedTouches[0].clientX; const diffX = currentX - swipeStartX;
+             let endPos = swipeStartOffset + diffX;
+             endPos = Math.max(-SWIPE_OPEN_PX, Math.min(0, endPos));
+             if (endPos < -SWIPE_OPEN_PX / 2) { openCardActions(id); } else { closeCardActions(id); }
+             setTimeout(() => isSwiping = false, 50);
         };
 
-        // NEW: Handle Right Click (Context Menu) to Toggle Edit/Delete options
+        // Right-click toggles the Share/Edit/Delete bar (primary desktop path).
         window.handleContextMenu = (e, id) => {
-            e.preventDefault(); 
+            e.preventDefault();
             const el = document.getElementById(`content-${id}`);
-            const actions = el?.parentElement.querySelector('.swipe-actions');
             if(!el) return;
-
-            // If another item is open, close it first
-            if(swipeCurrentId && swipeCurrentId !== id) {
-                 const other = document.getElementById(`content-${swipeCurrentId}`);
-                 const otherActions = other?.parentElement.querySelector('.swipe-actions');
-                 if(other) { 
-                     other.style.transform = `translateX(0)`; 
-                     if(otherActions) setTimeout(() => otherActions.style.visibility = 'hidden', 200); 
-                 }
-                 swipeCurrentId = null;
-            }
-
-            // Toggle current item
-            if (swipeCurrentId === id) {
-                // Close
-                el.style.transform = `translateX(0)`;
-                swipeCurrentId = null;
-                if(actions) setTimeout(() => actions.style.visibility = 'hidden', 200);
-            } else {
-                // Open
-                el.style.transition = 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)';
-                el.style.transform = `translateX(-240px)`;
-                swipeCurrentId = id;
-                if(actions) actions.style.visibility = 'visible';
-            }
+            if(swipeCurrentId && swipeCurrentId !== id) { closeCardActions(swipeCurrentId); }
+            if (swipeCurrentId === id) { closeCardActions(id); } else { openCardActions(id); }
         };
 
         window.handleItemClick = (id) => {
             if(isSwiping) { isSwiping = false; return; }
-            if(swipeCurrentId === id) { const el = document.getElementById(`content-${id}`); const actions = el?.parentElement.querySelector('.swipe-actions'); if(el) { el.style.transform = `translateX(0)`; if(actions) setTimeout(() => actions.style.visibility = 'hidden', 200); } swipeCurrentId = null; return; }
+            if(swipeCurrentId === id) { closeCardActions(id); return; }
             window.openDetail(id);
         };
 
@@ -3618,7 +3661,7 @@
         let pendingConfirmAction = null;
         window.showConfirm = (msg, action) => { const el = document.getElementById('confirm-modal'); const msgEl = document.getElementById('confirm-msg'); if(el && msgEl) { msgEl.innerText = msg; pendingConfirmAction = action; el.classList.remove('hidden'); } };
         window.closeConfirm = (isConfirmed) => { document.getElementById('confirm-modal').classList.add('hidden'); if (isConfirmed && pendingConfirmAction) { pendingConfirmAction(); } pendingConfirmAction = null; };
-        window.openEditModal = (id) => { editingId = id; const loc = getAllLocations().find(l => l.id === id); const custom = renamedLocations[id]; document.getElementById('edit-name-en').value = custom ? custom.en : (loc.en || ''); document.getElementById('edit-name-zh').value = custom ? custom.zh : (loc.zh || ''); document.getElementById('edit-lat').value = loc ? String(loc.lat) : ''; document.getElementById('edit-lng').value = loc ? String(loc.lng) : ''; document.getElementById('edit-modal').classList.remove('hidden'); const el = document.getElementById(`content-${id}`); const actions = el?.parentElement.querySelector('.swipe-actions'); if(el) { el.style.transform = `translateX(0)`; if(actions) setTimeout(() => actions.style.visibility = 'hidden', 200); } swipeCurrentId = null; };
+        window.openEditModal = (id) => { editingId = id; const loc = getAllLocations().find(l => l.id === id); const custom = renamedLocations[id]; document.getElementById('edit-name-en').value = custom ? custom.en : (loc.en || ''); document.getElementById('edit-name-zh').value = custom ? custom.zh : (loc.zh || ''); document.getElementById('edit-lat').value = loc ? String(loc.lat) : ''; document.getElementById('edit-lng').value = loc ? String(loc.lng) : ''; document.getElementById('edit-modal').classList.remove('hidden'); closeCardActions(id); };
         // saveNameEdit (now: save name + GPS) — handles both the name overlay
         // (renamedLocations) and the actual coordinate mutation on the underlying
         // customLocations entry. GPS edits require cache invalidation and a fresh
@@ -6673,13 +6716,17 @@
                 }
                 
                 // Close any open swipe-actions UI so it doesn't linger.
-                const el = document.getElementById(`content-${id}`);
-                if (el) {
-                    el.style.transform = 'translateX(0)';
-                    const actions = el.parentElement && el.parentElement.querySelector('.swipe-actions');
-                    if (actions) setTimeout(() => { actions.style.visibility = 'hidden'; }, 200);
+                if (typeof closeCardActions === 'function') {
+                    closeCardActions(id);
+                } else {
+                    const el = document.getElementById(`content-${id}`);
+                    if (el) {
+                        el.style.transform = 'translateX(0)';
+                        const actions = el.parentElement && el.parentElement.querySelector('.swipe-actions');
+                        if (actions) setTimeout(() => { actions.style.visibility = 'hidden'; }, 200);
+                    }
+                    if (typeof swipeCurrentId !== 'undefined') swipeCurrentId = null;
                 }
-                if (typeof swipeCurrentId !== 'undefined') swipeCurrentId = null;
                 
                 // Dispatch — native share preferred (lets user pick contact via system
                 // sheet), wa.me fallback for desktop or browsers without share API.
