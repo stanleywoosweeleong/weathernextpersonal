@@ -3,7 +3,7 @@
 // Version 1.0.0 — bump CACHE_VERSION on each release
 // ============================================================
 
-const CACHE_VERSION = 'wnpersonal-v0.6.7';
+const CACHE_VERSION = 'wnpersonal-v0.6.8';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const WEATHER_CACHE = `${CACHE_VERSION}-weather`;
@@ -82,22 +82,28 @@ self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (request.method !== 'GET') return;
 
-  // 1. Firebase, Gemini, Google APIs — NEVER cache (auth + real-time)
+  // 1. Firebase, Gemini, Google APIs — do NOT intercept at all.
+  // ------------------------------------------------------------
+  // BUGFIX: this rule previously called event.respondWith() and, on a
+  // failed fetch, returned a fallback JSON Response with status 503.
+  // That was fine for data/auth REST calls — but this same rule also
+  // matches the Firebase SDK *module scripts* (gstatic.com/firebasejs/...).
+  // When a module request fails and the SW hands back JSON, the browser
+  // tries to execute that JSON as an ES module, throws a syntax error,
+  // and kills the entire type="module" app script — permanent blank
+  // screen, repeating on every load because the SW is installed.
+  //
+  // Fix: don't intercept these requests. Just return without calling
+  // event.respondWith() — the browser fetches them natively. A real
+  // network failure then becomes an ordinary rejected fetch / failed
+  // import that the app's own error handling already deals with,
+  // instead of a poisoned JSON response masquerading as a module.
   if (
     url.hostname.includes('firebaseio.com') ||
     url.hostname.includes('googleapis.com') ||
     url.hostname.includes('firebase') ||
     url.hostname.includes('gstatic.com') && url.pathname.includes('firebasejs')
   ) {
-    // Network-only, but allow graceful failure
-    event.respondWith(
-      fetch(request).catch(() => {
-        return new Response(
-          JSON.stringify({ error: 'offline', message: 'Network unavailable' }),
-          { status: 503, headers: { 'Content-Type': 'application/json' } }
-        );
-      })
-    );
     return;
   }
 
