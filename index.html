@@ -115,7 +115,10 @@
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%237dd3fc%22/><path d=%22M0 55 L100 55 L100 100 L0 100 Z%22 fill=%22%2322c55e%22/><path d=%22M0 70 L100 70 L100 100 L0 100 Z%22 fill=%22%2315803d%22/><circle cx=%2270%22 cy=%2232%22 r=%2213%22 fill=%22%23fbbf24%22/><g stroke=%22%23fbbf24%22 stroke-width=%222.5%22 stroke-linecap=%22round%22><line x1=%2270%22 y1=%2210%22 x2=%2270%22 y2=%2216%22/><line x1=%2286%22 y1=%2232%22 x2=%2292%22 y2=%2232%22/><line x1=%2248%22 y1=%2232%22 x2=%2254%22 y2=%2232%22/><line x1=%2284%22 y1=%2218%22 x2=%2288%22 y2=%2214%22/><line x1=%2256%22 y1=%2218%22 x2=%2252%22 y2=%2214%22/></g><ellipse cx=%2225%22 cy=%2228%22 rx=%2213%22 ry=%225%22 fill=%22%23fff%22/><ellipse cx=%2220%22 cy=%2232%22 rx=%228%22 ry=%224%22 fill=%22%23fff%22/><line x1=%2250%22 y1=%2270%22 x2=%2220%22 y2=%22100%22 stroke=%22%23166534%22 stroke-width=%221%22 opacity=%220.5%22/><line x1=%2250%22 y1=%2270%22 x2=%2250%22 y2=%22100%22 stroke=%22%23166534%22 stroke-width=%221%22 opacity=%220.5%22/><line x1=%2250%22 y1=%2270%22 x2=%2280%22 y2=%22100%22 stroke=%22%23166534%22 stroke-width=%221%22 opacity=%220.5%22/></svg>">
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- html2canvas deferred: only used by the share-image feature, never at
+         first render. Deferring removes it as a render-blocking script so the
+         boot screen and UI paint sooner. -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         :root {
@@ -669,6 +672,53 @@
     </style>
 </head>
 <body class="flex flex-col">
+
+    <!-- ============================================================
+         BOOT SCREEN — first-paint loading overlay
+         ------------------------------------------------------------
+         The entire app UI lives in one type="module" script that
+         statically imports Firebase from a CDN, plus Tailwind loads
+         render-blocking in <head>. Until those resolve the user would
+         otherwise see a blank white page. This overlay uses ONLY inline
+         styles so it paints immediately, before Tailwind's stylesheet
+         arrives. initApp() calls window.hideBootScreen() once the first
+         renderList() completes; a 12s safety timeout also clears it so
+         it can never get permanently stuck if init throws early.
+         ============================================================ -->
+    <div id="boot-screen" style="position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f0fdf4;transition:opacity 0.4s ease;">
+      <svg width="96" height="96" viewBox="0 0 100 100" style="margin-bottom:20px;">
+        <rect width="100" height="100" rx="22" fill="#7dd3fc"/>
+        <path d="M0 55 L100 55 L100 100 L0 100 Z" fill="#22c55e"/>
+        <path d="M0 70 L100 70 L100 100 L0 100 Z" fill="#15803d"/>
+        <circle cx="70" cy="32" r="13" fill="#fbbf24"/>
+        <g stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round">
+          <line x1="70" y1="10" x2="70" y2="16"/>
+          <line x1="86" y1="32" x2="92" y2="32"/>
+          <line x1="48" y1="32" x2="54" y2="32"/>
+          <line x1="84" y1="18" x2="88" y2="14"/>
+          <line x1="56" y1="18" x2="52" y2="14"/>
+        </g>
+        <ellipse cx="25" cy="28" rx="13" ry="5" fill="#fff"/>
+        <ellipse cx="20" cy="32" rx="8" ry="4" fill="#fff"/>
+      </svg>
+      <div style="width:34px;height:34px;border:4px solid #bbf7d0;border-top-color:#15803d;border-radius:50%;animation:bootspin 0.8s linear infinite;"></div>
+      <p style="margin-top:18px;font-family:system-ui,-apple-system,sans-serif;font-size:14px;font-weight:700;color:#15803d;">载入中… Loading…</p>
+      <style>@keyframes bootspin{to{transform:rotate(360deg);}}</style>
+    </div>
+    <script>
+      // Defined early, before the module script runs, so initApp() can call
+      // it. Idempotent — safe to call more than once (timeout + initApp both).
+      window.hideBootScreen = function () {
+        var el = document.getElementById('boot-screen');
+        if (!el) return;
+        el.style.opacity = '0';
+        setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 450);
+      };
+      // Safety net: if initApp never calls hideBootScreen (early throw before
+      // our catch, network stall, etc.), clear the overlay anyway after 12s
+      // so the user is never staring at a permanent spinner.
+      setTimeout(function () { if (window.hideBootScreen) window.hideBootScreen(); }, 12000);
+    </script>
 
     <!-- Toast UI -->
     <div id="toast" class="toast-notification">
@@ -1945,13 +1995,24 @@
 
                 renderList(); updateLunarDate(); updateModelUI(); syncUI();
                 
+                // First render done — the UI is now painted, clear the boot
+                // screen. Auth/sync below continues in the background; the user
+                // can already see and interact with their cached locations.
+                if (window.hideBootScreen) window.hideBootScreen();
+                
                 try {
                     await signInAnonymously(auth);
                 } catch(err) {
                     console.warn("Auth failed:", err);
                 }
                 
-            } catch (err) { console.error("Init Error:", err); }
+            } catch (err) {
+                console.error("Init Error:", err);
+                // Even if init throws, clear the boot screen so the user isn't
+                // stuck on a permanent spinner. The 12s safety timeout would
+                // eventually catch this too, but clearing immediately is better.
+                if (window.hideBootScreen) window.hideBootScreen();
+            }
             initGestures();
         }
 
