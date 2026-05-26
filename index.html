@@ -115,10 +115,12 @@
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%237dd3fc%22/><path d=%22M0 55 L100 55 L100 100 L0 100 Z%22 fill=%22%2322c55e%22/><path d=%22M0 70 L100 70 L100 100 L0 100 Z%22 fill=%22%2315803d%22/><circle cx=%2270%22 cy=%2232%22 r=%2213%22 fill=%22%23fbbf24%22/><g stroke=%22%23fbbf24%22 stroke-width=%222.5%22 stroke-linecap=%22round%22><line x1=%2270%22 y1=%2210%22 x2=%2270%22 y2=%2216%22/><line x1=%2286%22 y1=%2232%22 x2=%2292%22 y2=%2232%22/><line x1=%2248%22 y1=%2232%22 x2=%2254%22 y2=%2232%22/><line x1=%2284%22 y1=%2218%22 x2=%2288%22 y2=%2214%22/><line x1=%2256%22 y1=%2218%22 x2=%2252%22 y2=%2214%22/></g><ellipse cx=%2225%22 cy=%2228%22 rx=%2213%22 ry=%225%22 fill=%22%23fff%22/><ellipse cx=%2220%22 cy=%2232%22 rx=%228%22 ry=%224%22 fill=%22%23fff%22/><line x1=%2250%22 y1=%2270%22 x2=%2220%22 y2=%22100%22 stroke=%22%23166534%22 stroke-width=%221%22 opacity=%220.5%22/><line x1=%2250%22 y1=%2270%22 x2=%2250%22 y2=%22100%22 stroke=%22%23166534%22 stroke-width=%221%22 opacity=%220.5%22/><line x1=%2250%22 y1=%2270%22 x2=%2280%22 y2=%22100%22 stroke=%22%23166534%22 stroke-width=%221%22 opacity=%220.5%22/></svg>">
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- html2canvas deferred: only used by the share-image feature, never at
-         first render. Deferring removes it as a render-blocking script so the
-         boot screen and UI paint sooner. -->
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- html2canvas MUST stay synchronous (no defer). The share/download
+         feature calls html2canvas() directly; with defer the library could
+         be unloaded when the user taps download — on iPhone Safari this
+         produced blank/black images. A defensive guard in downloadInfographic
+         also waits for it, but loading synchronously is the real fix. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         :root {
@@ -7226,6 +7228,25 @@
         window.downloadInfographic = async (e) => {
             if(e) e.preventDefault(); const btn = document.getElementById('dl-btn'); if(btn.disabled) return;
             try {
+                // Defensive guard: html2canvas must be loaded before we render.
+                // The script tag is synchronous so it normally is — but on a
+                // very slow CDN it could still be pending. Wait up to 5s in
+                // 100ms steps; if it never arrives, tell the user and bail
+                // rather than letting the loop below produce blank/black images.
+                if (typeof html2canvas === 'undefined') {
+                    let waited = 0;
+                    while (typeof html2canvas === 'undefined' && waited < 5000) {
+                        await new Promise(r => setTimeout(r, 100));
+                        waited += 100;
+                    }
+                    if (typeof html2canvas === 'undefined') {
+                        if (typeof window.showToast === 'function') {
+                            window.showToast('图片功能加载中，请稍候再试 / Image tool still loading, try again', true);
+                        }
+                        btn.disabled = false; btn.style.opacity = "1";
+                        return;
+                    }
+                }
                 btn.disabled = true; btn.style.opacity = "0.5"; const oS = scale, oX = posX, oY = posY; resetZoom(); await new Promise(r => setTimeout(r, 400));
                 const files = []; for (const lid of currentDisplayedIds) {
                     const card = document.getElementById(`report-card-${lid}`); if (!card) continue;
