@@ -1,9 +1,9 @@
 // ============================================================
 // WeatherNext Service Worker
-// Version 1.0.0 — bump CACHE_VERSION on each release
+// Version 0.7.1 — two-phase share fix + single forecast link. bump CACHE_VERSION on each release
 // ============================================================
 
-const CACHE_VERSION = 'wnpersonal-v0.7.0';
+const CACHE_VERSION = 'wnpersonal-v0.7.1';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const WEATHER_CACHE = `${CACHE_VERSION}-weather`;

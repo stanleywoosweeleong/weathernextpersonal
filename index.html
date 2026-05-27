@@ -469,6 +469,20 @@
         }
         .back-btn:active { transform: scale(0.9); background: #f8fafc; }
 
+        /* SHARE-READY STATE (v1.0.152) — dl-btn after images are prepared.
+           Green fill + soft pulse tells the broadcaster: tap again to share. */
+        #dl-btn.share-ready {
+            background: #16a34a; color: #ffffff; border-color: #16a34a;
+            box-shadow: 0 0 0 0 rgba(22,163,74,0.55);
+            animation: dlReadyPulse 1.6s ease-out infinite;
+        }
+        #dl-btn.share-ready:active { background: #15803d; }
+        @keyframes dlReadyPulse {
+            0%   { box-shadow: 0 0 0 0 rgba(22,163,74,0.55); }
+            70%  { box-shadow: 0 0 0 12px rgba(22,163,74,0); }
+            100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+        }
+
         #m-grid-viewport { overflow-y: auto; overflow-x: hidden; position: relative; background: #f8fafc; width: 100%; height: 100%; touch-action: pan-y; cursor: grab; padding-top: 8px; }
         #m-grid-viewport:active { cursor: grabbing; }
 
@@ -820,7 +834,7 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5M6 12h12"/></svg>
             </button>
             <button id="dl-btn" onclick="window.downloadInfographic(event)" class="back-btn shadow-md border border-slate-200 !bg-transparent active:scale-95 transition-transform">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <svg id="dl-btn-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </button>
             <div style="height: var(--safe-bottom);"></div>
         </div>
@@ -3696,6 +3710,11 @@
         };
 
         function renderReports(locIds) {
+             // SHARE CACHE INVALIDATION (v1.0.152) — any report rebuild means
+             // the locations, names, or 14-day data may have changed, so the
+             // cached PNGs are now potentially stale. Drop them; the next share
+             // tap re-renders. Covers favourite add/remove, edit, delete, refresh.
+             if (typeof window.invalidateShareCache === 'function') window.invalidateShareCache();
              const c = document.getElementById('infographic-report');
              
              // Smart Render: Check if we actually need to rebuild the HTML (avoids closing menus on data refresh)
@@ -5904,10 +5923,6 @@
                     en: 'Possible Thunderstorm Days:', ms: 'Hari Kemungkinan Ribut Petir:', zh: '可能有暴雨的日期:',
                     ta: 'புயல் நாட்கள்:', my: 'မုန်တိုင်းရက်များ:'
                 }[lang] || 'Possible Thunderstorm Days:';
-                const fullForecastLabel = {
-                    en: 'Full forecast', ms: 'Ramalan penuh', zh: '完整预报',
-                    ta: 'முழு முன்னறிவிப்பு', my: 'ခန့်မှန်းအပြည့်အစုံ'
-                }[lang] || 'Full forecast';
                 
                 // Today line — always include even if calm.
                 const today = days[0];
@@ -5933,28 +5948,14 @@
                     });
                 }
                 
-                // Deep-link: include id + lat/lng + both name fields so the recipient can
-                // recreate a dual-named custom location faithfully. The previous version
-                // encoded a single `name=` param which lost the alt-language name on the
-                // round trip (a "RESTAURANT 157 / 157 小食店" share carried only one name,
-                // and the recipient saved a single-language location).
-                //   - en/zh are encoded independently — recipient gets both or whichever exists
-                //   - name= is kept ONLY when neither en nor zh are present (defensive fallback;
-                //     shouldn't happen in practice since locName itself is derived from en/zh)
-                //   - Legacy URLs with only `name=` still parse correctly on the receiver side
-                //     because the receiver checks en/zh/name in priority order
-                if (loc) {
-                    let params = `?loc=${encodeURIComponent(lid)}&lat=${loc.lat}&lng=${loc.lng}`;
-                    if (resolvedEn) params += `&en=${encodeURIComponent(resolvedEn)}`;
-                    if (resolvedZh) params += `&zh=${encodeURIComponent(resolvedZh)}`;
-                    if (!resolvedEn && !resolvedZh) params += `&name=${encodeURIComponent(locName)}`;
-                    lines.push('');
-                    lines.push(`${fullForecastLabel}: ${BASE_URL}${params}`);
-                } else {
-                    lines.push('');
-                    lines.push(`${fullForecastLabel}: ${BASE_URL}`);
-                }
-                
+                // NOTE (v1.0.154): the full-forecast link used to be appended HERE,
+                // once per location, carrying that location's deep-link params. For
+                // the broadcast use case that produced a repeated link after every
+                // favourite — visual clutter, and confusing in a machine-translated
+                // relay chain. The link is now appended ONCE after the whole loop
+                // (see below). Recipients of a broadcast already have the app with
+                // their own farms, so a single plain app link is what they need.
+
                 // Separator between locations when sharing multiple (split-view case).
                 lines.push('');
                 lines.push('---');
@@ -5966,6 +5967,24 @@
                 lines.pop();
             }
             
+            
+            // SINGLE FULL-FORECAST LINK (v1.0.154) — appended ONCE here, after all
+            // locations, instead of once per location inside the loop. A plain app
+            // link (no per-location deep-link params): broadcast recipients already
+            // have their own farms set up, so the link just needs to open the app.
+            // Label language follows the first location's language; falls back to
+            // English. Guarded so an empty report adds nothing.
+            if (lines.length > 0) {
+                const firstLang = (ids && ids.length && typeof getLang === 'function')
+                    ? getLang(ids[0]) : 'zh';
+                const linkLabel = {
+                    en: 'Full forecast', ms: 'Ramalan penuh', zh: '完整预报',
+                    ta: 'முழு முன்னறிவிப்பு', my: 'ခန့်မှန်းအပြည့်အစုံ'
+                }[firstLang] || 'Full forecast';
+                lines.push('');
+                lines.push(`${linkLabel}: ${BASE_URL}`);
+            }
+
             lines.push('');
             // CC-BY-4.0 attribution (v1.0.131). Required wherever data is displayed.
             // v1.0.132: dropped the "WeatherNext" tail — brand already in header.
@@ -7225,8 +7244,54 @@
             _pendingBroadcastMode.mode = null;
         };
         
+        // ============================================================
+        // TWO-PHASE SHARE (v1.0.152) — iOS transient-activation fix.
+        // ------------------------------------------------------------
+        // PROBLEM: iOS Safari only keeps a tap's "transient activation"
+        // (the gesture permission navigator.share() requires) alive for
+        // a few seconds. The old single-tap flow ran the html2canvas
+        // renders (one per favourite location) AFTER the tap, before
+        // reaching navigator.share(). With many locations those renders
+        // outlast the gesture window, so share() throws NotAllowedError.
+        // It is render TIME, never a file-count limit.
+        //
+        // FIX: split into two phases on the same dl-btn.
+        //   Phase "idle"  — tap RENDERS the PNGs + caches them. Shows a
+        //                   "preparing images" toast. Does NOT call
+        //                   navigator.share().
+        //   Phase "ready" — tap calls navigator.share({files}) with the
+        //                   cached files IMMEDIATELY. Nothing slow runs
+        //                   after this tap, so the iOS gesture is live.
+        //
+        // Cache is invalidated whenever reports re-render (favourite
+        // change, edit, delete, periodic refresh) so a stale image can
+        // never be shared.
+        // ============================================================
+        let _shareCache = { files: null, ids: null };
+        window.invalidateShareCache = () => {
+            _shareCache.files = null;
+            _shareCache.ids = null;
+            const btn = document.getElementById('dl-btn');
+            if (btn) btn.classList.remove('share-ready');
+        };
+
         window.downloadInfographic = async (e) => {
             if(e) e.preventDefault(); const btn = document.getElementById('dl-btn'); if(btn.disabled) return;
+
+            // ----- PHASE "ready": cached files exist for the CURRENT set -----
+            // The user already tapped once and we rendered. This tap is fresh,
+            // so navigator.share() runs against a live gesture. This is the fix.
+            const cacheValid = _shareCache.files && _shareCache.files.length > 0
+                && _shareCache.ids
+                && _shareCache.ids.length === currentDisplayedIds.length
+                && _shareCache.ids.every((id, i) => id === currentDisplayedIds[i]);
+            if (cacheValid) {
+                btn.disabled = true; btn.style.opacity = "0.5";
+                await window._dispatchShare(_shareCache.files, btn);
+                return;
+            }
+
+            // ----- PHASE "idle": nothing cached — render now, then mark ready -----
             try {
                 // Defensive guard: html2canvas must be loaded before we render.
                 // The script tag is synchronous so it normally is — but on a
@@ -7247,7 +7312,12 @@
                         return;
                     }
                 }
-                btn.disabled = true; btn.style.opacity = "0.5"; const oS = scale, oX = posX, oY = posY; resetZoom(); await new Promise(r => setTimeout(r, 400));
+                btn.disabled = true; btn.style.opacity = "0.5";
+                // Tell the user rendering has begun — replaces the old dead wait.
+                if (typeof window.showToast === 'function') {
+                    window.showToast('正在准备图片，请稍候… / Preparing images, please wait…', false);
+                }
+                const oS = scale, oX = posX, oY = posY; resetZoom(); await new Promise(r => setTimeout(r, 400));
                 const files = []; for (const lid of currentDisplayedIds) {
                     const card = document.getElementById(`report-card-${lid}`); if (!card) continue;
                     
@@ -7370,111 +7440,105 @@
                 }
                 scale = oS; posX = oX; posY = oY; applyTransform();
                 
-                if (files.length > 0) { 
+                if (files.length > 0) {
                     // ============================================================
-                    // UNIFIED SHARE PATH (v1.0.107)
-                    // ------------------------------------------------------------
-                    // Two execution branches, ONE observable outcome:
-                    //   User ends up in WhatsApp with the message ready to send.
-                    //
-                    // Branch 1 (mobile — iOS/Android with file-share API):
-                    //   navigator.share({ files, text }) opens the system share sheet.
-                    //   User picks WhatsApp. WhatsApp gets PNG as message body and the
-                    //   summary text as the caption. One-step share.
-                    //
-                    // Branch 2 (desktop — Windows/Mac/Linux, or any device without
-                    // navigator.canShare({files}) support):
-                    //   Open web.whatsapp.com/send?text=<encoded> in a new tab —
-                    //   WhatsApp Web loads with the text pre-filled, user picks the
-                    //   contact, and types/sends. Simultaneously trigger the PNG
-                    //   download so the user can drag-and-drop the chart image into
-                    //   the chat after the contact is selected. Two-step but reliable.
-                    //
-                    // Why this is "unified" despite two code paths:
-                    //   - Same source of truth for the text: buildShareText()
-                    //   - Same image generation pipeline: html2canvas → PNG files
-                    //   - Same end state: a WhatsApp message ready to send
-                    //   - The branching is forced by platform API differences
-                    //     (navigator.share with files doesn't work on desktop), not by
-                    //     design choice. When desktop browsers eventually support
-                    //     navigator.canShare({files}) — Chrome on ChromeOS already does —
-                    //     they'll automatically take branch 1.
-                    //
-                    // The old Windows-specific direct-download path is now the LAST-
-                    // RESORT fallback only (popup blocker prevented WhatsApp Web from
-                    // opening), not the primary desktop behavior.
+                    // IDLE PHASE COMPLETE — cache and arm the ready phase.
+                    // We do NOT call navigator.share() here: the tap that started
+                    // this render is seconds old and its iOS transient activation
+                    // has expired during the html2canvas loop. Instead cache the
+                    // files, flip the button to "ready", and ask for a second tap.
                     // ============================================================
-                    let handled = false;
-
-                    const shareText = (window.daysCache && Object.keys(window.daysCache).length > 0)
-                        ? buildShareText(currentDisplayedIds)
-                        : APP_BRANDING.shareFallbackText;
-
-                    // ------ Branch 1: native file share (mobile primary) ------
-                    if (navigator.share && navigator.canShare && navigator.canShare({ files })) {
-                        try {
-                            await navigator.share({ files, title: APP_BRANDING.shareTitle, text: shareText });
-                            handled = true;
-                        } catch (err) {
-                            // AbortError = user closed the share sheet. Treat as handled
-                            // (user made an explicit choice not to send). Other errors
-                            // (NotAllowedError, security failures) fall through to
-                            // Branch 2 so the share still completes via desktop path.
-                            if (err.name === 'AbortError') handled = true;
-                            else console.warn("Native share failed, falling back to WhatsApp Web:", err);
-                        }
-                    }
-
-                    // ------ Branch 2: WhatsApp Web + PNG download (desktop primary) ------
-                    if (!handled) {
-                        // Open WhatsApp Web with pre-filled text. window.open returns null
-                        // if blocked by a popup blocker — we detect that to know whether
-                        // to surface a user-visible fallback message later.
-                        const waUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
-                        let waWindow = null;
-                        try {
-                            waWindow = window.open(waUrl, '_blank', 'noopener,noreferrer');
-                        } catch (err) {
-                            console.warn("WhatsApp Web open failed:", err);
-                        }
-                        
-                        // Download the PNG files regardless of whether WhatsApp Web opened.
-                        // The user can drag the downloaded image into the chat once they've
-                        // picked the recipient. Stagger by 500ms to avoid the browser
-                        // blocking multiple "automatic downloads" as malicious behavior.
-                        files.forEach((f, index) => {
-                            setTimeout(() => {
-                                const url = URL.createObjectURL(f);
-                                const a = document.createElement('a');
-                                a.style.display = 'none';
-                                a.href = url;
-                                a.download = f.name;
-                                document.body.appendChild(a);
-                                a.click();
-                                setTimeout(() => {
-                                    document.body.removeChild(a);
-                                    URL.revokeObjectURL(url);
-                                }, 2000);
-                            }, index * 500);
-                        });
-                        
-                        // If popup blocker killed the WhatsApp Web tab, leave a one-time
-                        // toast pointing the user to the URL. We don't try to re-open
-                        // automatically — that'd just get blocked again. The PNG download
-                        // still works so the user isn't completely stuck. Toast text comes
-                        // from TRANS[firstLocLang] so it matches the user's selected
-                        // language; falls back to English if that fails for any reason.
-                        if (!waWindow && typeof window.showToast === 'function') {
-                            const firstId = currentDisplayedIds[0];
-                            const lang = (firstId && typeof getLang === 'function') ? getLang(firstId) : 'en';
-                            const msg = (TRANS[lang] && TRANS[lang].popupBlocked) || TRANS.en.popupBlocked;
-                            window.showToast(msg, false);
-                        }
-                        
-                        handled = true;
+                    _shareCache.files = files;
+                    _shareCache.ids = currentDisplayedIds.slice();
+                    btn.classList.add('share-ready');
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('图片就绪 — 再次点击分享 / Images ready — tap again to share', false);
                     }
                 }
             } catch (err) { console.error(err); } finally { btn.disabled = false; btn.style.opacity = "1"; }
+        };
+
+        // ============================================================
+        // _dispatchShare (v1.0.152) — the actual share, run from the
+        // READY-PHASE tap. Called synchronously off a fresh user gesture,
+        // so navigator.share() has a live transient activation.
+        // Branch 1 = mobile native file share; Branch 2 = desktop
+        // WhatsApp Web + PNG download fallback.
+        // ============================================================
+        window._dispatchShare = async (files, btn) => {
+            try {
+                let handled = false;
+                const shareText = (window.daysCache && Object.keys(window.daysCache).length > 0)
+                    ? buildShareText(currentDisplayedIds)
+                    : APP_BRANDING.shareFallbackText;
+
+                // ------ Branch 1: native file share (mobile primary) ------
+                if (navigator.share && navigator.canShare && navigator.canShare({ files })) {
+                    try {
+                        await navigator.share({ files, title: APP_BRANDING.shareTitle, text: shareText });
+                        handled = true;
+                        // Successful share consumes the cache so the next share
+                        // re-renders fresh data. Button returns to idle look.
+                        window.invalidateShareCache();
+                    } catch (err) {
+                        // AbortError = user closed the share sheet. Treat as handled
+                        // (explicit choice not to send) but KEEP the cache so they
+                        // can tap once more without re-rendering. Other errors
+                        // (NotAllowedError, security failures) fall through to
+                        // Branch 2 so the share still completes via desktop path.
+                        if (err.name === 'AbortError') {
+                            handled = true;
+                        } else {
+                            console.warn("Native share failed, falling back to WhatsApp Web:", err);
+                        }
+                    }
+                }
+
+                // ------ Branch 2: WhatsApp Web + PNG download (desktop primary) ------
+                if (!handled) {
+                    const waUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+                    let waWindow = null;
+                    try {
+                        waWindow = window.open(waUrl, '_blank', 'noopener,noreferrer');
+                    } catch (err) {
+                        console.warn("WhatsApp Web open failed:", err);
+                    }
+
+                    // Download the PNG files regardless of whether WhatsApp Web opened.
+                    // Stagger by 500ms to avoid the browser blocking multiple
+                    // "automatic downloads" as malicious behavior.
+                    files.forEach((f, index) => {
+                        setTimeout(() => {
+                            const url = URL.createObjectURL(f);
+                            const a = document.createElement('a');
+                            a.style.display = 'none';
+                            a.href = url;
+                            a.download = f.name;
+                            document.body.appendChild(a);
+                            a.click();
+                            setTimeout(() => {
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                            }, 2000);
+                        }, index * 500);
+                    });
+
+                    if (!waWindow && typeof window.showToast === 'function') {
+                        const firstId = currentDisplayedIds[0];
+                        const lang = (firstId && typeof getLang === 'function') ? getLang(firstId) : 'en';
+                        const msg = (TRANS[lang] && TRANS[lang].popupBlocked) || TRANS.en.popupBlocked;
+                        window.showToast(msg, false);
+                    }
+
+                    handled = true;
+                    // Desktop path done — release the cache.
+                    window.invalidateShareCache();
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+            }
         };
 
         document.addEventListener('DOMContentLoaded', async () => {
