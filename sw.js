@@ -20,7 +20,7 @@
 // seed version personal-arch1. bump CACHE_VERSION on each release
 // ============================================================
 
-const CACHE_VERSION = 'wnpersonal-v0.8.0-arch';
+const CACHE_VERSION = 'wnpersonal-v0.8.1-arch';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const WEATHER_CACHE = `${CACHE_VERSION}-weather`;

@@ -5349,7 +5349,16 @@
             const fetchBatch = async (locations, model) => {
                 const lats = locations.map(l => l.lat).join(','), lngs = locations.map(l => l.lng).join(',');
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&hourly=temperature_2m,precipitation_probability&models=${model}&timezone=auto&forecast_days=2`;
-                const res = await fetch(url, { signal });
+                // Use fetchWithRetry, not raw fetch — the bulk landing fetch is the
+                // most user-visible request (paints the home list), so a transient
+                // failure here should not just flip status to "Network Error" and
+                // leave the user staring at stale cards. fetchWithRetry handles
+                // 429/5xx with exponential backoff, recognises Open-Meteo's
+                // concurrent-request throttle, and on a thrown error (e.g. a TCP
+                // ERR_CONNECTION_CLOSED) retries the request rather than letting
+                // it propagate. AbortSignal is passed through opts so a pull-to-
+                // refresh / re-fetch still cancels in-flight retries correctly.
+                const res = await fetchWithRetry(url, { signal });
                 const json = await res.json();
                 // Return results paired with the exact locations they belong to, so mapping
                 // back to weatherData[id] is correct regardless of model grouping/order.
@@ -5422,6 +5431,15 @@
         // fetch() wrapper: on 429 (or a 5xx hiccup), wait and retry with growing
         // backoff. Honours the server's Retry-After header when present. Returns
         // the Response (caller reads .ok / .json()); gives up after `tries`.
+        //
+        // Special case: Open-Meteo's free tier returns HTTP 503 with body
+        // {"error":true,"reason":"Too many concurrent requests"} when too many
+        // big queries are in flight at once. The generic 0.8s/1.6s/3.2s backoff
+        // is too short for this — every farm's retry bunches up in the same
+        // window and re-trips the throttle. When we detect that specific reason
+        // we use a longer cooldown (3-4.5s with jitter) so the retries spread
+        // past one another's backoff windows. Body is read from a clone so the
+        // caller still gets an intact response stream.
         const fetchWithRetry = async (url, opts = {}, tries = 4) => {
             let delay = 800; // ms; doubles each retry (0.8s, 1.6s, 3.2s)
             for (let attempt = 0; attempt < tries; attempt++) {
@@ -5435,9 +5453,21 @@
                 }
                 if (res.status !== 429 && res.status < 500) return res; // success or non-retryable
                 if (attempt === tries - 1) return res; // out of retries — hand back the (failed) response
+                // Default backoff = the current exponential delay.
+                let waitMs = delay;
+                // Peek the body for Open-Meteo's concurrent-throttle reason and
+                // extend the cooldown if matched. Clone so caller can still read.
+                if (res.status === 503) {
+                    try {
+                        const peek = await res.clone().json();
+                        if (peek && typeof peek.reason === 'string' && /concurrent/i.test(peek.reason)) {
+                            waitMs = Math.max(waitMs, 3000 + Math.random() * 1500);
+                        }
+                    } catch (_) { /* not JSON — fall through to normal backoff */ }
+                }
                 // Respect Retry-After (seconds) if the server sent one, else backoff.
                 const ra = parseInt(res.headers.get('retry-after') || '', 10);
-                await _sleep(Number.isFinite(ra) ? ra * 1000 : delay);
+                await _sleep(Number.isFinite(ra) ? ra * 1000 : waitMs);
                 delay *= 2;
             }
         };
@@ -5624,9 +5654,13 @@
                  // THROTTLED: process at most a few farms concurrently instead of all
                  // at once. Each farm = 3 API calls (main+past+daily), so 18 farms ×3 =
                  // ~54 requests; firing them simultaneously trips Open-Meteo's free-tier
-                 // rate limit (HTTP 429). A small pool spreads them out and, with
-                 // fetchWithRetry's backoff, keeps multi-farm broadcasts under the cap.
-                 await runPooled(idsToFetch, fetchOne, 3);
+                 // rate limit (HTTP 429) or concurrent-request throttle (HTTP 503 with
+                 // body {"reason":"Too many concurrent requests"}). A small pool spreads
+                 // them out and, with fetchWithRetry's concurrent-aware backoff, keeps
+                 // multi-farm broadcasts under the cap. Pool size lowered from 3 to 2
+                 // — at 3 the big ecmwf_ifs queries were still tripping the concurrent
+                 // limit on multi-farm refreshes.
+                 await runPooled(idsToFetch, fetchOne, 2);
                  renderReports(_renderSet);
                  setStatus("Ready", true);
              } catch (e) { setStatus("Sync Error", 'error'); }
@@ -10287,8 +10321,9 @@
             
             // Throttled (v1.2.4): the ensemble fetch also runs during a broadcast,
             // so firing every farm at once compounds the rate-limit pressure from the
-            // main detail fetch. Use the same small pool to stay under Open-Meteo's cap.
-            await runPooled(ids, fetchOne, 3);
+            // main detail fetch. Use the same small pool (2) to stay under Open-Meteo's
+            // concurrent cap — see fetchWithRetry's concurrent-aware backoff.
+            await runPooled(ids, fetchOne, 2);
         };
         
         // Tap handler for either broadcast button. Builds text, copies to clipboard,
