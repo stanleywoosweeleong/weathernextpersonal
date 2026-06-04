@@ -1,9 +1,26 @@
 // ============================================================
-// WeatherNext Service Worker
-// Version 0.7.2 — two-phase share + single link + html2canvas guard. bump CACHE_VERSION on each release
+// WeatherNext Service Worker — Personal (generic personalizable build)
+// MIGRATED to the full Raub/Cameron microclimate architecture. This is the
+// GENERIC build for friends who want hyperlocal weather without joining the
+// WhatsApp groups. KEY DIFFERENCES from the regional builds:
+//   - seedLocs is EMPTY (seeds no farms) — each friend adds their own via +
+//   - NO name seed — NAME_KEY left unset; each friend sets their own name
+//   - NO region identity — branding is plain '农友天气 WeatherNext'
+//   - AI prompt is location-name-free (a friend may be anywhere in Malaysia);
+//     it reasons from each location's real coordinates + live weather
+// Carries the FULL engine (per Stanley's choice): microclimate disease-risk
+// (6-disease + Phase-2 tiers), fog engine, 29-crop list, coordinate-aware
+// terrain note, broadcast GPS sort, Open-Meteo rate-limit throttling + retry,
+// storm-confidence wording, AI-greeting crop-owner fix, REAL model-run freshness
+// header, gift-flow deep-link receiver, swipe share + edit name/GPS. A grower
+// friend gets disease/fog advice once they add a farm; a casual friend who adds
+// a home location simply sees forecast + general briefing (no crop = no crop
+// advice). Boot screen sky-blue (#84d2f8) to match the sun/field icon.
+// Identity: namespace weathernextpersonal, appId wnext-ag-v41-weathernextpersonal,
+// seed version personal-arch1. bump CACHE_VERSION on each release
 // ============================================================
 
-const CACHE_VERSION = 'wnpersonal-v0.7.2';
+const CACHE_VERSION = 'wnpersonal-v0.8.0-arch';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const WEATHER_CACHE = `${CACHE_VERSION}-weather`;
@@ -17,8 +34,8 @@ const SHELL_ASSETS = [
   './icon-512.png',
   './favicon-32.png',
   './apple-touch-icon.png',
-  // External CDN assets — cache so app loads fully offline after first visit
-  'https://cdn.tailwindcss.com',
+  // External CDN assets — cache so app loads fully offline after first visit.
+  // (Tailwind is no longer here — it's now pre-built and inlined in index.html.)
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
 ];
 
@@ -31,9 +48,9 @@ self.addEventListener('install', (event) => {
     caches.open(SHELL_CACHE)
       .then((cache) => {
         // Use addAll with a fallback per-item to survive a single failure.
-        // Cross-origin CDN assets (cdn.tailwindcss.com, cdnjs) often lack CORS headers
-        // for fetch() pre-caching. Use 'no-cors' mode for them — produces an opaque
-        // response which is cacheable but not introspectable (fine for static assets).
+        // Cross-origin CDN assets (cdnjs) often lack CORS headers for fetch()
+        // pre-caching. Use 'no-cors' mode for them — produces an opaque response
+        // which is cacheable but not introspectable (fine for static assets).
         return Promise.allSettled(
           SHELL_ASSETS.map((url) => {
             const isCrossOrigin = url.startsWith('http') && !url.startsWith(self.location.origin);
@@ -83,26 +100,23 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   // 1. Firebase, Gemini, Google APIs — do NOT intercept at all.
-  // ------------------------------------------------------------
-  // BUGFIX: this rule previously called event.respondWith() and, on a
-  // failed fetch, returned a fallback JSON Response with status 503.
-  // That was fine for data/auth REST calls — but this same rule also
-  // matches the Firebase SDK *module scripts* (gstatic.com/firebasejs/...).
-  // When a module request fails and the SW hands back JSON, the browser
-  // tries to execute that JSON as an ES module, throws a syntax error,
-  // and kills the entire type="module" app script — permanent blank
-  // screen, repeating on every load because the SW is installed.
   //
-  // Fix: don't intercept these requests. Just return without calling
-  // event.respondWith() — the browser fetches them natively. A real
-  // network failure then becomes an ordinary rejected fetch / failed
-  // import that the app's own error handling already deals with,
-  // instead of a poisoned JSON response masquerading as a module.
+  // This rule used to do event.respondWith(fetch(request).catch(... JSON 503 ...)).
+  // That was a bug: it also caught the Firebase SDK JavaScript module requests
+  // (gstatic.com/firebasejs/...). When such a request failed, the SW handed the
+  // browser a JSON body; the browser then tried to execute JSON as an ES module,
+  // which throws and kills the entire type="module" script — a fully blank page,
+  // repeated on every load because the installed SW kept doing it.
+  //
+  // Fix: don't substitute anything for these requests. Returning here (with no
+  // event.respondWith) lets the browser fetch them natively. A real network
+  // failure becomes a normal rejected fetch, which the app already handles —
+  // never a poisoned JSON module.
   if (
     url.hostname.includes('firebaseio.com') ||
     url.hostname.includes('googleapis.com') ||
     url.hostname.includes('firebase') ||
-    url.hostname.includes('gstatic.com') && url.pathname.includes('firebasejs')
+    (url.hostname.includes('gstatic.com') && url.pathname.includes('firebasejs'))
   ) {
     return;
   }
@@ -156,7 +170,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. CDN scripts (Tailwind, html2canvas) — cache-first (rarely changes).
+  // 4. CDN scripts (html2canvas) — cache-first (rarely changes).
   // Cross-origin CDNs without CORS headers need no-cors mode to be cacheable.
   if (url.hostname.includes('cdnjs.cloudflare.com') || url.hostname.includes('cdn.tailwindcss.com')) {
     event.respondWith(
