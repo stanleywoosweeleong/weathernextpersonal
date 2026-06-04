@@ -66,7 +66,7 @@ icon-512.png / icon-192.png / apple-touch-icon.png / favicon-32.png — icons
 When pushing changes, bump `CACHE_VERSION` at the top of `sw.js`. Current value:
 
 ```
-wnpersonal-v0.8.0-arch
+wnext-weathernextpersonal-202606042138
 ```
 
 ---
