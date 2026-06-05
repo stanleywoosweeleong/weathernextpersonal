@@ -9513,14 +9513,22 @@
                     },
                     // Compact fog tag for the broadcast. Only emitted when fog matters.
                     // amFog = hours of fog in the 5-9am commute window; band = dense/fog.
+                    // NOTE: no emoji — the 🌫️ glyph (Emoji 1.0, 2015) renders as a blank
+                    // box on older device OSes common across the WhatsApp recipient base;
+                    // the wording is self-explanatory and renders identically everywhere.
                     fog: (band, amFog) => {
-                        if (band === 'dense') return amFog >= 2 ? '🌫️ Dense dawn fog — drive slow' : '🌫️ Dense fog likely (overnight/dawn)';
-                        if (band === 'fog')   return amFog >= 2 ? '🌫️ Foggy dawn — low visibility' : '🌫️ Foggy spells (mostly overnight/dawn)';
+                        if (band === 'dense') return amFog >= 2 ? 'Dense dawn fog — drive slow' : 'Dense fog likely (overnight/dawn)';
+                        if (band === 'fog')   return amFog >= 2 ? 'Foggy dawn — low visibility' : 'Foggy spells (mostly overnight/dawn)';
                         return null;
                     },
                     trace: 'trace only',
+                    spreadThin: 'Possible drizzle through the day',
                     stormMaybe: 'Scattered storms possible in the window (uncertain)',
-                    stormMaybeConfident: 'Scattered storms likely in the window (fairly sure)'
+                    stormMaybeConfident: 'Scattered storms likely in the window (fairly sure)',
+                    // High ensemble agreement, stated in terms the farmer can act on:
+                    // what the models AGREE ON for this day's rain, not a bare "models agree".
+                    confWet: '~ Models agree: rain is likely',
+                    confDry: '~ Models agree: mostly dry'
                 },
                 zh: {
                     storm: '可能有暴雨时段',
@@ -9539,13 +9547,16 @@
                         return '极端降雨';
                     },
                     fog: (band, amFog) => {
-                        if (band === 'dense') return amFog >= 2 ? '🌫️ 清晨浓雾 — 小心驾驶' : '🌫️ 夜间/清晨有浓雾';
-                        if (band === 'fog')   return amFog >= 2 ? '🌫️ 清晨有雾 — 能见度低' : '🌫️ 夜间/清晨间中有雾';
+                        if (band === 'dense') return amFog >= 2 ? '清晨浓雾 — 小心驾驶' : '夜间/清晨有浓雾';
+                        if (band === 'fog')   return amFog >= 2 ? '清晨有雾 — 能见度低' : '夜间/清晨间中有雾';
                         return null;
                     },
                     trace: '微量',
+                    spreadThin: '可能有丝丝细雨',
                     stormMaybe: '时段内或有零星雷阵雨（不确定）',
-                    stormMaybeConfident: '时段内可能有雷阵雨（较确定）'
+                    stormMaybeConfident: '时段内可能有雷阵雨（较确定）',
+                    confWet: '~ 模型一致：很可能有雨',
+                    confDry: '~ 模型一致：大致无雨'
                 },
                 ms: {
                     storm: 'Masa kemungkinan ribut',
@@ -9562,13 +9573,16 @@
                         return 'Hujan Ekstrem';
                     },
                     fog: (band, amFog) => {
-                        if (band === 'dense') return amFog >= 2 ? '🌫️ Kabus tebal subuh — pandu perlahan' : '🌫️ Kabus tebal (malam/subuh)';
-                        if (band === 'fog')   return amFog >= 2 ? '🌫️ Subuh berkabus — penglihatan rendah' : '🌫️ Berkabus (malam/subuh)';
+                        if (band === 'dense') return amFog >= 2 ? 'Kabus tebal subuh — pandu perlahan' : 'Kabus tebal (malam/subuh)';
+                        if (band === 'fog')   return amFog >= 2 ? 'Subuh berkabus — penglihatan rendah' : 'Berkabus (malam/subuh)';
                         return null;
                     },
                     trace: 'sedikit sahaja',
+                    spreadThin: 'Mungkin hujan merintik-rintik',
                     stormMaybe: 'Ribut berselerak mungkin dalam masa ini (tidak pasti)',
-                    stormMaybeConfident: 'Ribut berselerak mungkin dalam masa ini (agak pasti)'
+                    stormMaybeConfident: 'Ribut berselerak mungkin dalam masa ini (agak pasti)',
+                    confWet: '~ Model setuju: berkemungkinan hujan',
+                    confDry: '~ Model setuju: kebanyakannya kering'
                 }
             };
             // For ta and my, no native-speaker confirmation of vocabulary — fall through
@@ -9598,6 +9612,30 @@
             const sections = [];
             sections.push(headerLine);
             if (dataHeader) sections.push(dataHeader);
+
+            // MIDNIGHT-CROSSOVER NOTE (v1.3.2). When the broadcast is sent in the
+            // afternoon (12 PM–6 PM MYT, dayOffset still 0), the smart hourly window
+            // runs from the current hour through TOMORROW 03:00 — so the list ends
+            // with 12am/1am/2am/3am hours that belong to tomorrow. Each such line is
+            // already prefixed 明天/Esok, but a short header note up front sets the
+            // expectation so farmers don't read the tail small-hours as "tonight" /
+            // tomorrow's forecast as a mistake. Only shown when the window actually
+            // crosses midnight: afternoon sends (dayOffset 0, hour ≥ 12). Morning
+            // sends end at 23:00 (no crossover); after-6PM sends are wholly tomorrow
+            // and already carry the (明日)/(Esok)/(Tomorrow) header tag.
+            const _crossesMidnight = (dayOffset === 0 && broadcasterHour >= 12);
+            if (_crossesMidnight) {
+                // No emoji — the 🕛 clock glyph (Emoji 1.0, 2015) renders as a blank
+                // box on older device OSes across the WhatsApp recipient base; text
+                // alone is universally compatible (same reasoning as the fog tags).
+                const crossNote = lang === 'zh'
+                    ? '12am 之后为明天预报'
+                    : (lang === 'ms'
+                        ? 'Selepas 12am untuk ramalan esok'
+                        : 'After 12am is tomorrow\u2019s forecast');
+                sections.push(crossNote);
+            }
+
             sections.push('');
             
             for (const lid of ids) {
@@ -9628,7 +9666,31 @@
                 // Pick this location's vocabulary based on per-location override.
                 // English-override locations always use English; other locations use
                 // the app's default language. See VOCAB / ENGLISH_LOCATIONS above.
-                const locLang = getLocLang(lid);
+                // ----------
+                // BILINGUAL PRIMARY-LANGUAGE FIX (v1.3.1): getLocLang() falls back to
+                // the broadcaster's GREETING-language choice when a location has no
+                // per-location override. That's correct for the single-language modes
+                // (favorites, allStable) — the broadcaster's pick IS the message
+                // language there. But the daily BILINGUAL mode (allStableHourly) always
+                // pairs a primary language with a Malay translation, so letting the
+                // greeting choice drive the primary meant: pick Malay greeting → a
+                // Chinese-owner farm's whole section (fog tag included) rendered in
+                // Malay only, with no Chinese and no translation. In bilingual mode the
+                // primary should be the OWNER's language: the per-location override, or
+                // the app default (zh) when none is set — never the transient greeting
+                // pick. Malay is then layered as the fixed second language below.
+                const isBilingualMode = (mode === 'allStableHourly');
+                const getLocLangForMode = (id) => {
+                    if (!isBilingualMode) return getLocLang(id);
+                    if (ENGLISH_LOCATIONS.includes(id)) return 'en';
+                    const perLoc = (typeof locationAiLangs !== 'undefined' && locationAiLangs)
+                        ? locationAiLangs[id] : null;
+                    if (perLoc && VOCAB[perLoc]) return perLoc;
+                    // No per-location pref → app default (zh), NOT the greeting choice.
+                    const appDefault = (typeof getLang === 'function') ? getLang('default') : 'zh';
+                    return VOCAB[appDefault] ? appDefault : 'zh';
+                };
+                const locLang = getLocLangForMode(lid);
                 const V = VOCAB[locLang] || VOCAB.en;
                 
                 // Per-day line builder. Returns one formatted line for a given day index.
@@ -9640,9 +9702,13 @@
                 // "⚠️ 模型不确定" warning. Only appears when ensemble members genuinely
                 // split (30-70% predicting rain >5mm) — actionable uncertainty signal.
                 // High-confidence days (the typical case) get no marker.
-                const buildDayLine = (dayIdx, prefix) => {
+                const buildDayLine = (dayIdx, prefix, winOpts) => {
                     const d = days[dayIdx];
                     if (!d) return null;
+                    // winOpts mirrors the hourly timeline's window options so the
+                    // fog tag below can be gated to the SAME hours actually being
+                    // broadcast. { useSmartWindow:bool }. Defaults to full-day.
+                    winOpts = winOpts || {};
                     // Rainfall volume display (v1.0.128). Two thresholds:
                     //   ≥1mm   → show mm number
                     //   ≥10mm  → also prepend the qualitative label (中等降雨 etc)
@@ -9655,6 +9721,29 @@
                     // be suppressed when the storm clause will fire, or we'd contradict
                     // ourselves ("4mm trace" + "possible thunderstorm" on the same line).
                     const hasStorm = (d.cape >= 1500 && d.triggerWindow);
+                    // Shared hourly signal (v1.3.14): scan the broadcast window once for the
+                    // heaviest displayable (≥0.7mm) hour. Used both to suppress a misleading
+                    // trace tag AND to floor the displayed probability so the headline never
+                    // contradicts a real rain hour shown below it. Best-effort; 0 on error.
+                    let maxHourMm = 0;
+                    try {
+                        const _pa = (typeof getHourlyData === 'function') ? getHourlyData(lid, 'precipitation', true) : null;
+                        if (Array.isArray(_pa)) {
+                            // Match the smart/full window the hourly list will actually show.
+                            let _ws, _we;
+                            if (winOpts.useSmartWindow && dayIdx === 0) {
+                                const _h = new Date().getHours();
+                                if (dayOffset === 1)      { _ws = 24; _we = 48; }
+                                else if (_h >= 12)        { _ws = _h; _we = winOpts.capToToday ? 24 : 28; }
+                                else                      { _ws = Math.max(0, _h); _we = 24; }
+                            } else { _ws = dayIdx * 24; _we = (dayIdx + 1) * 24; }
+                            for (let _h2 = _ws; _h2 < _we && _h2 < _pa.length; _h2++) {
+                                const _mm = _pa[_h2] || 0;
+                                if (_mm >= 0.7 && _mm > maxHourMm) maxHourMm = _mm;
+                            }
+                        }
+                    } catch (e) { maxHourMm = 0; }
+                    const hasMeasurableHour = maxHourMm >= 0.7;
                     let rainfallStr = '';
                     if (typeof d.rv === 'number' && d.rv >= 1) {
                         const mmRounded = Math.round(d.rv);
@@ -9668,38 +9757,162 @@
                             // hour reaches the 0.7mm hourly display threshold — so the hourly
                             // timeline reads "no rain". Tag the mm as trace so the daily "100%"
                             // and the empty hourly list reconcile for the reader. NOT on storm
-                            // days (handled above) — a storm's rain isn't a trace.
-                            rainfallStr = ` (${mmRounded}mm/D, ${V.trace})`;
+                            // days (handled above) — a storm's rain isn't a trace. Also NOT
+                            // when a real measurable hour exists (would mislabel real rain).
+                            rainfallStr = hasMeasurableHour ? ` (${mmRounded}mm/D)` : ` (${mmRounded}mm/D, ${V.trace})`;
                         } else {
                             rainfallStr = ` (${mmRounded}mm/D)`;
                         }
                     } else if (d.pp >= 50 && V.trace && !hasStorm) {
-                        // High probability but <1mm total: pure trace. Without this note
-                        // "雨 100%" beside "没有下雨" reads as a bug to the user. Again, not
-                        // on storm days.
-                        rainfallStr = ` (${V.trace})`;
+                        // High probability but <1mm DAILY total: usually pure trace, so we
+                        // tag "微量" to reconcile "雨 100%" with an empty hourly list. BUT the
+                        // daily total can read ~0 while a single hour still shows measurable
+                        // rain (model field quirk) — in that case "微量" beside a real "3mm"
+                        // hour is misleading. Suppress the trace tag when the broadcast window
+                        // actually contains a displayable (≥0.7mm) hour.
+                        if (!hasMeasurableHour) rainfallStr = ` (${V.trace})`;
                     }
-                    let line = `${prefix}: ${d.hi}°C, ${V.rain} ${d.pp}%${rainfallStr}`;
+                    // PROBABILITY/AMOUNT RECONCILIATION (v1.3.12, extended v1.3.14): the
+                    // model's daily PROBABILITY (pp) and its AMOUNT (rv) / hourly precip are
+                    // separate fields and can disagree — pp can read low (even 0%) on a day
+                    // that carries a real measurable total OR a real rain hour. Printing
+                    // "雨 20%" above a "3pm 大雨 6mm" line (and a "models agree: rain likely"
+                    // marker) is a flat contradiction. Floor the DISPLAYED probability so the
+                    // headline never under-claims rain that's concretely shown below it:
+                    //   • real daily amount (rv ≥ 1mm)          → at least 5%
+                    //   • a measurable hour exists (≥0.7mm)     → at least 60% (rain IS shown)
+                    //   • a heavy hour exists (≥2mm)            → at least 80% (clearly raining)
+                    // We only ever RAISE the display toward what the concrete signals imply,
+                    // never lower it and never exceed 100. A real rain day shown as a high
+                    // chance is honest; shown as "20%" beside heavy rain is not.
+                    let ppDisplay = (typeof d.pp === 'number') ? d.pp : 0;
+                    if (typeof d.rv === 'number' && d.rv >= 1) ppDisplay = Math.max(ppDisplay, 5);
+                    if (hasMeasurableHour) ppDisplay = Math.max(ppDisplay, 60);
+                    if (maxHourMm >= 2)    ppDisplay = Math.max(ppDisplay, 80);
+                    ppDisplay = Math.min(100, ppDisplay);
+                    let line = `${prefix}: ${d.hi}°C, ${V.rain} ${ppDisplay}%${rainfallStr}`;
+                    // ORDER FIX (v1.3.4): fog happens at DAWN, the storm window in the
+                    // AFTERNOON — so the fog tag must appear ABOVE the storm clause to
+                    // read in chronological order. Previously the storm clause was
+                    // appended here (right after the rain summary, linked by a trailing
+                    // comma) and the fog tag came after it — reversing the real
+                    // sequence. Now we CAPTURE the storm clause and the fog tag(s) and
+                    // append them in dawn→afternoon order below. The old "," link
+                    // between the rain summary and the storm clause is dropped, since
+                    // the fog tag now sits between them.
+                    let stormClause = '';
                     if (hasStorm) {
-                        // Intentional line break before the storm clause (v1.0.125): keeps the
-                        // temp/rain/mm basics on one line and gives the storm window a clean
-                        // second line. Better than letting WhatsApp wrap mid-phrase.
-                        line += `,\n${V.storm} ${fmtHour(d.triggerWindow.start)}-${fmtHour(d.triggerWindow.end)}`;
+                        // WINDOW-AWARE STORM GATING (v1.3.12): the storm's trigger window is
+                        // a span of clock hours (e.g. 8–10 AM). On a smart-window "today"
+                        // broadcast sent in the afternoon, a morning storm window has
+                        // ALREADY PASSED — advertising "possible storm 8AM-10AM" at 1 PM (and
+                        // the matching "scattered storms in the window" line below) is the
+                        // same past-event confusion the fog gate fixes. Only emit the storm
+                        // clause when the trigger window overlaps the hours actually being
+                        // broadcast. Full-day windows (favourites days 2–3, after-6PM
+                        // tomorrow) always overlap their own day, so the storm always shows
+                        // there. Compute the same window the hourly timeline/ fog gate use.
+                        let sWinStart, sWinEnd; // hours-of-day for THIS day
+                        if (winOpts.useSmartWindow && dayIdx === 0) {
+                            const _h = new Date().getHours();
+                            if (dayOffset === 1)      { sWinStart = 0;  sWinEnd = 24; } // after-6PM: full tomorrow
+                            else if (_h >= 12)        { sWinStart = _h; sWinEnd = winOpts.capToToday ? 24 : 28; }
+                            else                      { sWinStart = Math.max(0, _h); sWinEnd = 24; }
+                        } else {
+                            sWinStart = 0; sWinEnd = 24; // full day
+                        }
+                        // Storm window (start,end) vs broadcast window (sWinStart,sWinEnd).
+                        // Overlap if storm.end > winStart AND storm.start < winEnd.
+                        const sStart = d.triggerWindow.start, sEnd = d.triggerWindow.end;
+                        const stormInWindow = (sEnd > sWinStart && sStart < sWinEnd);
+                        if (stormInWindow) {
+                            stormClause = `${V.storm} ${fmtHour(d.triggerWindow.start)}-${fmtHour(d.triggerWindow.end)}`;
+                        }
                     }
                     // CAMERON fog/visibility tag (compact). Only emitted on meaningfully
                     // foggy days (band fog/dense) so clear days stay clean and the WhatsApp
                     // message doesn't bloat. Emphasises the dawn commute window — the real
                     // mountain-road driving hazard for the boss reading this. Wrapped in a
                     // guard so a missing computeFog / data never breaks the broadcast.
+                    // ----------
+                    // WINDOW-AWARE GATING (v1.2.9 fog fix):
+                    // computeFog scores the WHOLE 24h day and its message wording is
+                    // built around the 5–9am dawn commute window. But the broadcast's
+                    // smart window for "today" starts at the CURRENT hour (e.g. 1 PM)
+                    // and runs to 23:00 or tomorrow 03:00 — it never includes this
+                    // morning's already-past dawn. Emitting the dawn-fog tag in that
+                    // case warned recipients about a morning that already happened,
+                    // sitting right under the greeting where it read as a forecast for
+                    // the hours that follow. Fix: only emit the fog tag when foggy
+                    // hours actually fall INSIDE the same window the hourly timeline
+                    // below will show. Full-day windows (favorites days 2–3) keep the
+                    // dawn tag, since their whole day — dawn included — is upcoming.
+                    const fogTagLines = [];
                     try {
                         if (typeof V.fog === 'function' && typeof window.computeFog === 'function' && loc && detailData[lid]) {
                             const _f = window.computeFog(loc, detailData[lid], dayIdx);
                             if (_f && _f.available && (_f.bandKey === 'fog' || _f.bandKey === 'dense')) {
-                                const fogTag = V.fog(_f.bandKey, _f.amFogHours || 0);
-                                if (fogTag) line += `\n${fogTag}`;
+                                // Window this day is being broadcast over. Mirrors
+                                // computeWindow() used by the hourly timeline. Hours are
+                                // GLOBAL indices into the 48h array; computeFog.hourly is
+                                // per-day (0–23 within dayIdx), so convert to global.
+                                let winStart, winEnd; // global hour indices
+                                if (winOpts.useSmartWindow && dayIdx === 0) {
+                                    const _h = new Date().getHours();
+                                    if (dayOffset === 1)      { winStart = 24; winEnd = 48; }
+                                    else if (_h >= 12)        { winStart = _h; winEnd = winOpts.capToToday ? 24 : 28; }
+                                    else                      { winStart = Math.max(0, _h); winEnd = 24; }
+                                } else {
+                                    winStart = dayIdx * 24;
+                                    winEnd   = (dayIdx + 1) * 24;
+                                }
+                                // Does any foggy hour fall inside [winStart, winEnd)?
+                                const dayBase = dayIdx * 24;
+                                let fogInWindow = false;
+                                let amFogInWindow = 0;
+                                if (Array.isArray(_f.hourly)) {
+                                    for (const hr of _f.hourly) {
+                                        if (hr.fog < 0.5) continue;
+                                        const globalHr = dayBase + hr.i;   // hr.i is 0–23 within the day
+                                        if (globalHr >= winStart && globalHr < winEnd) {
+                                            fogInWindow = true;
+                                            // Re-count dawn (5–9am) fog hours that are also in-window,
+                                            // so amFog-driven "dense dawn fog — drive slow" wording
+                                            // only fires when the dawn hours are genuinely ahead.
+                                            const localHr = hr.i;
+                                            if (localHr >= 5 && localHr <= 9) amFogInWindow++;
+                                        }
+                                    }
+                                }
+                                if (fogInWindow) {
+                                    // BILINGUAL FOG FIX (v1.3.1): in the daily bilingual
+                                    // mode (allStableHourly) the summary line — and thus the
+                                    // fog tag — was emitted in ONE language only: getLocLang(),
+                                    // which falls back to the broadcaster's GREETING-language
+                                    // choice when a location has no per-location override. So a
+                                    // Chinese-owner farm got a Malay-ONLY fog warning whenever
+                                    // the broadcaster picked Malay for the greeting — wrong
+                                    // language, and missing the translation the rest of the
+                                    // bilingual report carries. Fix: in bilingual mode emit the
+                                    // fog tag in the location's own language PLUS a Malay
+                                    // translation below (matching the hourly top+Malay pattern).
+                                    // Skip the duplicate when the location's language is already
+                                    // Malay. Non-bilingual modes keep the single-language tag.
+                                    const fogTag = V.fog(_f.bandKey, amFogInWindow);
+                                    if (fogTag) {
+                                        fogTagLines.push(fogTag);
+                                        if (winOpts.bilingual && locLang !== 'ms' && VOCAB.ms && typeof VOCAB.ms.fog === 'function') {
+                                            const msFogTag = VOCAB.ms.fog(_f.bandKey, amFogInWindow);
+                                            if (msFogTag) fogTagLines.push(msFogTag);
+                                        }
+                                    }
+                                }
                             }
                         }
                     } catch (e) { /* fog tag is best-effort; never break the broadcast */ }
+                    // Append in chronological order: dawn fog first, afternoon storm second.
+                    for (const fl of fogTagLines) line += `\n${fl}`;
+                    if (stormClause) line += `\n${stormClause}`;
                     // Ensemble confidence marker (v1.0.129; v1.0.130 reworded gently;
                     // v1.0.145 inverted to positive framing).
                     // ----------
@@ -9747,10 +9960,36 @@
                         } catch (e) { stormLineWillCarryConf = true; }
                     }
                     if (conf && conf.confidence === 'high' && !stormLineWillCarryConf) {
-                        const highConfLabel = locLang === 'zh'
-                            ? '~ 模型一致'
-                            : (locLang === 'ms' ? '~ Model konsisten' : '~ Models agree');
-                        line += `\n${highConfLabel}`;
+                        // State WHAT the models agree ON, not a bare "models agree" that
+                        // hangs with no referent (v1.3.13). The farmer needs the actionable
+                        // takeaway: agreed it'll RAIN, or agreed it's mostly DRY. Decide from
+                        // this day's rain signal so the marker always agrees with the rest of
+                        // the message (the hourly list / amount below it):
+                        //   wet  = meaningful rain indicated (pp ≥ 50%, or rv ≥ 1mm, or a
+                        //          measurable ≥0.7mm hour exists in the window)
+                        //   dry  = none of the above
+                        let _wet = (typeof d.pp === 'number' && d.pp >= 50)
+                                || (typeof d.rv === 'number' && d.rv >= 1);
+                        if (!_wet) {
+                            try {
+                                const _pa = (typeof getHourlyData === 'function') ? getHourlyData(lid, 'precipitation', true) : null;
+                                if (Array.isArray(_pa)) {
+                                    const _s = dayIdx * 24, _e = _s + 24;
+                                    for (let _h = _s; _h < _e && _h < _pa.length; _h++) {
+                                        if ((_pa[_h] || 0) >= 0.7) { _wet = true; break; }
+                                    }
+                                }
+                            } catch (e) { /* leave _wet as-is */ }
+                        }
+                        const confLabel = _wet
+                            ? (V.confWet || '~ Models agree: rain is likely')
+                            : (V.confDry || '~ Models agree: mostly dry');
+                        line += `\n${confLabel}`;
+                        // Bilingual: add the Malay reading below (guarded against ms-owner dup).
+                        if (winOpts.bilingual && locLang !== 'ms' && VOCAB.ms) {
+                            const msConf = _wet ? VOCAB.ms.confWet : VOCAB.ms.confDry;
+                            if (msConf) line += `\n${msConf}`;
+                        }
                     }
                     return line;
                 };
@@ -9808,7 +10047,16 @@
                 // Smart window only meaningful for dayIdx 0 (today); for any
                 // other day, returns full 00:00-23:00 anchored at that day's
                 // offset in the 48-hour hourly array.
-                const computeWindow = (dayIdx, useSmartWindow) => {
+                // ----------
+                // capToToday (v1.3.3): when set, the 12 PM–6 PM tier does NOT spill
+                // into tomorrow 00:00–03:00 — it stops at today 23:00. Used by the
+                // FAVOURITES mode only, where day 2 already renders the FULL tomorrow
+                // (00:00–23:00). Without the cap, tomorrow's small hours were listed
+                // twice: once as the day-1 "明天 12am…" tail, then again at the top of
+                // the day-2 block. The 1-day modes (allStable / allStableHourly) leave
+                // capToToday off, since they have no day-2 to carry those hours — the
+                // 3 AM spill is the only place they appear there.
+                const computeWindow = (dayIdx, useSmartWindow, capToToday) => {
                     if (!useSmartWindow || dayIdx > 0) {
                         // Full 24h for that day. Hourly arrays are 48h (today + tomorrow).
                         return { startHour: dayIdx * 24, endHour: (dayIdx + 1) * 24 };
@@ -9820,8 +10068,9 @@
                         // After 6 PM — full tomorrow (indices 24-47).
                         return { startHour: 24, endHour: 48 };
                     } else if (mytHour >= 12) {
-                        // 12 PM - 6 PM — today from current hour through tomorrow 3 AM.
-                        return { startHour: mytHour, endHour: 28 };
+                        // 12 PM - 6 PM — today from current hour through tomorrow 3 AM,
+                        // UNLESS capped to today (favourites: day 2 covers tomorrow).
+                        return { startHour: mytHour, endHour: capToToday ? 24 : 28 };
                     } else {
                         // Before 12 PM — today from current hour through 23:00.
                         return { startHour: Math.max(0, mytHour), endHour: 24 };
@@ -9832,6 +10081,7 @@
                     opts = opts || {};
                     const useSmart = !!opts.useSmartWindow;
                     const includeMalay = !!opts.includeMalay;
+                    const capToToday = !!opts.capToToday;
                     
                     const precipArr = (typeof getHourlyData === 'function')
                         ? getHourlyData(lid, 'precipitation', true)
@@ -9840,13 +10090,15 @@
                     if (!Array.isArray(precipArr) || precipArr.length === 0) {
                         const noDataTop = locLang === 'en'
                             ? 'No hourly data'
-                            : '无逐时数据';
-                        return includeMalay
+                            : (locLang === 'ms' ? 'Tiada data setiap jam' : '无逐时数据');
+                        // Bilingual adds a Malay second line — unless the top is already
+                        // Malay (would duplicate). Same guard pattern as the fog tag.
+                        return (includeMalay && locLang !== 'ms')
                             ? [noDataTop, 'Tiada data setiap jam']
                             : [noDataTop];
                     }
                     
-                    const { startHour, endHour } = computeWindow(dayIdx, useSmart);
+                    const { startHour, endHour } = computeWindow(dayIdx, useSmart, capToToday);
                     
                     // Collect rain hours in this window.
                     const rainEntries = [];
@@ -9867,7 +10119,18 @@
                         // are localized/hit-or-miss). Reconcile by acknowledging the
                         // uncertain storm potential instead of denying rain outright.
                         const dayObj = (typeof days !== 'undefined' && days) ? days[dayIdx] : null;
-                        const dayHasStorm = !!(dayObj && dayObj.cape >= 1500 && dayObj.triggerWindow);
+                        let dayHasStorm = !!(dayObj && dayObj.cape >= 1500 && dayObj.triggerWindow);
+                        // v1.3.12: only treat the storm as active if its trigger window
+                        // overlaps the hours being broadcast — otherwise an already-past
+                        // morning storm (on an afternoon send) would print the storm-maybe
+                        // line with no storm clause above it. startHour/endHour are GLOBAL
+                        // 48h indices; the storm window is hours-of-day for this dayIdx.
+                        if (dayHasStorm) {
+                            const sGlobalStart = dayIdx * 24 + dayObj.triggerWindow.start;
+                            const sGlobalEnd   = dayIdx * 24 + dayObj.triggerWindow.end;
+                            const overlaps = (sGlobalEnd > startHour && sGlobalStart < endHour);
+                            if (!overlaps) dayHasStorm = false;
+                        }
                         if (dayHasStorm && V.stormMaybe) {
                             // Reconcile with the ensemble confidence marker. The storm-maybe
                             // line normally says "(uncertain)" because CAPE flags storm
@@ -9885,11 +10148,31 @@
                             const msStorm = (_agree && VOCAB.ms && VOCAB.ms.stormMaybeConfident)
                                 ? VOCAB.ms.stormMaybeConfident
                                 : ((VOCAB.ms && VOCAB.ms.stormMaybe) ? VOCAB.ms.stormMaybe : topStorm);
-                            return includeMalay ? [topStorm, msStorm] : [topStorm];
+                            return (includeMalay && locLang !== 'ms') ? [topStorm, msStorm] : [topStorm];
+                        }
+                        // No displayable hour AND no storm flag. Two sub-cases:
+                        //
+                        // (1) The daily summary indicates meaningful rain (rv ≥ 1mm or
+                        //     pp ≥ 50%) yet no single hour clears the 0.7mm display floor
+                        //     — the rain is real but SPREAD THIN across many hours. A flat
+                        //     "没有下雨 / No rain" here directly contradicts the summary's
+                        //     "雨 80% (8mm/D)" line right above it (the historical
+                        //     confusion). Say so explicitly instead: light rain through
+                        //     the day, no heavy hour. This reconciles the two lines.
+                        //
+                        // (2) Genuinely dry (low rv AND low pp) — plain "no rain".
+                        const _rv = (dayObj && typeof dayObj.rv === 'number') ? dayObj.rv : 0;
+                        const _pp = (dayObj && typeof dayObj.pp === 'number') ? dayObj.pp : 0;
+                        const _thinRain = (_rv >= 1 || _pp >= 50);
+                        if (_thinRain && V.spreadThin) {
+                            const topThin = V.spreadThin;
+                            const msThin = (VOCAB.ms && VOCAB.ms.spreadThin) ? VOCAB.ms.spreadThin : topThin;
+                            return (includeMalay && locLang !== 'ms') ? [topThin, msThin] : [topThin];
                         }
                         // Dry day. Single-language or bilingual no-rain line.
-                        const topNoRain = locLang === 'en' ? 'No rain' : '没有下雨';
-                        return includeMalay
+                        const topNoRain = locLang === 'en' ? 'No rain'
+                            : (locLang === 'ms' ? 'Tiada hujan' : '没有下雨');
+                        return (includeMalay && locLang !== 'ms')
                             ? [topNoRain, 'Tiada hujan']
                             : [topNoRain];
                     }
@@ -9919,9 +10202,10 @@
                         const topClock = crossesToTomorrow ? `${V.tomorrow} ${clock}` : clock;
                         const msClock  = crossesToTomorrow ? `Esok ${clock}` : clock;
                         const mmStr = e.cls.showMm ? `, ${Math.round(e.mm * 10) / 10}mm` : '';
-                        const topLabel = locLang === 'en' ? e.cls.en : e.cls.zh;
+                        const topLabel = locLang === 'en' ? e.cls.en
+                            : (locLang === 'ms' ? e.cls.ms : e.cls.zh);
                         topLines.push(`${topClock} ${topLabel}${mmStr}`);
-                        if (includeMalay) {
+                        if (includeMalay && locLang !== 'ms') {
                             msLines.push(`${msClock} ${e.cls.ms}${mmStr}`);
                         }
                     }
@@ -9943,13 +10227,19 @@
                         : [V.tomorrow, V.dayAfter, V.dayAfterNext];
                     for (let i = 0; i < 3; i++) {
                         const idx = dayOffset + i;
-                        const summary = buildDayLine(idx, labels3[i]);
+                        // Smart window only for day 1 (i === 0). Pass the same flag to
+                        // buildDayLine so its fog tag is gated to the identical window.
+                        const useSmart = (i === 0);
+                        // capToToday (v1.3.3): favourites day 1 stops at today 23:00 and
+                        // does NOT spill into tomorrow 00:00–03:00, because day 2 (i===1)
+                        // already renders the full tomorrow — avoids listing tomorrow's
+                        // small hours twice. Only meaningful for day 1's smart window.
+                        const capToToday = (i === 0);
+                        const summary = buildDayLine(idx, labels3[i], { useSmartWindow: useSmart, capToToday });
                         if (!summary) continue;
                         sections.push(summary);
                         sections.push('');
-                        // Smart window only for day 1 (i === 0).
-                        const useSmart = (i === 0);
-                        const hourlyLines = buildHourlyTimeline(idx, { useSmartWindow: useSmart, includeMalay: false });
+                        const hourlyLines = buildHourlyTimeline(idx, { useSmartWindow: useSmart, includeMalay: false, capToToday });
                         for (const line of hourlyLines) sections.push(line);
                         // Blank between days (but not after the last day — the
                         // per-location blank further below handles separation
@@ -9960,7 +10250,7 @@
                     // 1 day, bilingual (single-language top + Malay below). Smart
                     // window for the broadcaster workflow. Preserved as-is per
                     // Stanley's request — still useful for foreign-worker layer.
-                    const summary = buildDayLine(dayOffset, dayOffset === 0 ? V.today : V.tomorrow);
+                    const summary = buildDayLine(dayOffset, dayOffset === 0 ? V.today : V.tomorrow, { useSmartWindow: true, bilingual: true });
                     if (summary) {
                         sections.push(summary);
                         sections.push('');
@@ -9971,7 +10261,7 @@
                     // 1 day, single-language. Matches allStableHourly structure
                     // (daily summary + hourly timeline) but without the Malay
                     // doubled layer. Same smart-window logic as the bilingual mode.
-                    const summary = buildDayLine(dayOffset, dayOffset === 0 ? V.today : V.tomorrow);
+                    const summary = buildDayLine(dayOffset, dayOffset === 0 ? V.today : V.tomorrow, { useSmartWindow: true });
                     if (summary) {
                         sections.push(summary);
                         sections.push('');

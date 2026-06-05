@@ -18,9 +18,33 @@
 // advice). Boot screen sky-blue (#84d2f8) to match the sun/field icon.
 // Identity: namespace weathernextpersonal, appId wnext-ag-v41-weathernextpersonal,
 // seed version personal-arch1. bump CACHE_VERSION on each release
+// ------------------------------------------------------------
+// BROADCAST CLARITY PORT (from Raub v1.3.0–v1.3.14, applied 2026-06-05):
+// the WhatsApp broadcast text builder (buildBroadcastText) was replaced wholesale
+// with the refined Raub version. The GENERIC build's identity is UNCHANGED —
+// weathernextpersonal namespace, appId wnext-ag-v41-weathernextpersonal, seed
+// version personal-arch1, EMPTY seedLocs, no name seed, plain branding, the
+// location-name-free AI prompt, gift-flow deep-link receiver, and swipe share +
+// edit name/GPS are all preserved exactly. Only the broadcast text logic was
+// swapped (verified the function body matched the pre-fix baseline with no
+// build-specific drift before transplant; empty-locations case still degrades
+// gracefully to "没有可用的地点 / No locations available", not a crash). Fixes:
+//   • Fog tag gated to the broadcast window (no warning about an already-past dawn)
+//   • Fog rendered in the location's language + Malay, never the greeting choice
+//   • Fog tag placed BEFORE the afternoon storm clause (dawn→afternoon order)
+//   • Favourites day-1 capped at 23:00 (no double-listing tomorrow's small hours)
+//   • Afternoon midnight-crossover note ("12am 之后为明天预报")
+//   • 🌫️ and 🕛 emoji removed (blank-box on older device OSes); 📍 kept
+//   • Single-language Malay hourly labels now render in Malay
+//   • Thin-rain reconciliation ("可能有丝丝细雨 / Possible drizzle / Mungkin hujan
+//     merintik-rintik") instead of a contradictory "no rain"
+//   • Confidence marker states WHAT models agree on ("模型一致：很可能有雨 / 大致无雨")
+//   • Contradiction sweep: past-storm suppression, probability floored to the
+//     measurable-hour signal, trace tag suppressed when a real rain hour exists
+// bump CACHE_VERSION on each release
 // ============================================================
 
-const CACHE_VERSION = 'wnext-weathernextpersonal-202606042138';
+const CACHE_VERSION = 'wnext-weathernextpersonal-202606052200';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const WEATHER_CACHE = `${CACHE_VERSION}-weather`;
