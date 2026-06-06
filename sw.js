@@ -43,8 +43,16 @@
 //     measurable-hour signal, trace tag suppressed when a real rain hour exists
 // bump CACHE_VERSION on each release
 // ============================================================
+// ------------------------------------------------------------
+// FOG FIXES (ported from Cameron v1.0.310/311, 2026-06-06): (1) broadcast
+// fog tag now derives its band from the WORST in-window VISIBILITY
+// (computeFog thresholds <=200m dense, <=1000m fog) instead of bandKey, so
+// it matches the detail screen's fog index. (2) Dropped the misleading
+// 'overnight/夜间/malam' wording — now day-agnostic morning wording (清晨有浓雾
+// / Dense fog in the morning / Kabus tebal waktu pagi). Generic identity
+// (empty seedLocs, no name seed, location-name-free AI prompt, gift-flow) unchanged.
 
-const CACHE_VERSION = 'wnext-weathernextpersonal-202606052200';
+const CACHE_VERSION = 'wnext-weathernextpersonal-202606062226';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const WEATHER_CACHE = `${CACHE_VERSION}-weather`;

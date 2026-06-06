@@ -9517,8 +9517,8 @@
                     // box on older device OSes common across the WhatsApp recipient base;
                     // the wording is self-explanatory and renders identically everywhere.
                     fog: (band, amFog) => {
-                        if (band === 'dense') return amFog >= 2 ? 'Dense dawn fog — drive slow' : 'Dense fog likely (overnight/dawn)';
-                        if (band === 'fog')   return amFog >= 2 ? 'Foggy dawn — low visibility' : 'Foggy spells (mostly overnight/dawn)';
+                        if (band === 'dense') return amFog >= 2 ? 'Dense dawn fog — drive slow' : 'Dense fog in the morning';
+                        if (band === 'fog')   return amFog >= 2 ? 'Foggy dawn — low visibility' : 'Foggy spells in the morning';
                         return null;
                     },
                     trace: 'trace only',
@@ -9547,8 +9547,8 @@
                         return '极端降雨';
                     },
                     fog: (band, amFog) => {
-                        if (band === 'dense') return amFog >= 2 ? '清晨浓雾 — 小心驾驶' : '夜间/清晨有浓雾';
-                        if (band === 'fog')   return amFog >= 2 ? '清晨有雾 — 能见度低' : '夜间/清晨间中有雾';
+                        if (band === 'dense') return amFog >= 2 ? '清晨浓雾 — 小心驾驶' : '清晨有浓雾';
+                        if (band === 'fog')   return amFog >= 2 ? '清晨有雾 — 能见度低' : '清晨有雾';
                         return null;
                     },
                     trace: '微量',
@@ -9573,8 +9573,8 @@
                         return 'Hujan Ekstrem';
                     },
                     fog: (band, amFog) => {
-                        if (band === 'dense') return amFog >= 2 ? 'Kabus tebal subuh — pandu perlahan' : 'Kabus tebal (malam/subuh)';
-                        if (band === 'fog')   return amFog >= 2 ? 'Subuh berkabus — penglihatan rendah' : 'Berkabus (malam/subuh)';
+                        if (band === 'dense') return amFog >= 2 ? 'Kabus tebal subuh — pandu perlahan' : 'Kabus tebal waktu pagi';
+                        if (band === 'fog')   return amFog >= 2 ? 'Subuh berkabus — penglihatan rendah' : 'Berkabus waktu pagi';
                         return null;
                     },
                     trace: 'sedikit sahaja',
@@ -9870,12 +9870,21 @@
                                 const dayBase = dayIdx * 24;
                                 let fogInWindow = false;
                                 let amFogInWindow = 0;
+                                // VISIBILITY CONSISTENCY FIX: broadcast fog tag must agree
+                                // with the detail screen. The detail fog INDEX uses actual
+                                // visibility (worstVis); computeFog's bandKey can read
+                                // 'dense' from the humidity/saturation composite even when
+                                // visibility is fine. Fix: derive the tag's band from the
+                                // WORST in-window VISIBILITY (<=200m dense, <=1000m fog). If
+                                // visibility never enters the fog range in-window, no tag.
+                                let winWorstVis = Infinity;
                                 if (Array.isArray(_f.hourly)) {
                                     for (const hr of _f.hourly) {
                                         if (hr.fog < 0.5) continue;
                                         const globalHr = dayBase + hr.i;   // hr.i is 0–23 within the day
                                         if (globalHr >= winStart && globalHr < winEnd) {
                                             fogInWindow = true;
+                                            if (typeof hr.vis === 'number' && hr.vis < winWorstVis) winWorstVis = hr.vis;
                                             // Re-count dawn (5–9am) fog hours that are also in-window,
                                             // so amFog-driven "dense dawn fog — drive slow" wording
                                             // only fires when the dawn hours are genuinely ahead.
@@ -9884,7 +9893,13 @@
                                         }
                                     }
                                 }
-                                if (fogInWindow) {
+                                let visBand = null;
+                                if (winWorstVis <= 200) visBand = 'dense';
+                                else if (winWorstVis <= 1000) visBand = 'fog';
+                                if (visBand === null && !isFinite(winWorstVis)) {
+                                    if (_f.bandKey === 'fog') visBand = 'fog';
+                                }
+                                if (fogInWindow && visBand) {
                                     // BILINGUAL FOG FIX (v1.3.1): in the daily bilingual
                                     // mode (allStableHourly) the summary line — and thus the
                                     // fog tag — was emitted in ONE language only: getLocLang(),
@@ -9898,11 +9913,11 @@
                                     // translation below (matching the hourly top+Malay pattern).
                                     // Skip the duplicate when the location's language is already
                                     // Malay. Non-bilingual modes keep the single-language tag.
-                                    const fogTag = V.fog(_f.bandKey, amFogInWindow);
+                                    const fogTag = V.fog(visBand, amFogInWindow);
                                     if (fogTag) {
                                         fogTagLines.push(fogTag);
                                         if (winOpts.bilingual && locLang !== 'ms' && VOCAB.ms && typeof VOCAB.ms.fog === 'function') {
-                                            const msFogTag = VOCAB.ms.fog(_f.bandKey, amFogInWindow);
+                                            const msFogTag = VOCAB.ms.fog(visBand, amFogInWindow);
                                             if (msFogTag) fogTagLines.push(msFogTag);
                                         }
                                     }
