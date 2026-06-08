@@ -476,7 +476,7 @@
         .ch-mc-item { white-space: nowrap; }
         .ch-mc-item b { color: #0f172a; font-weight: 800; }
         .ch-mc-acc { white-space: nowrap; }
-        .ch-mc-err { font-size: 10px; color: #94a3b8; white-space: nowrap; }
+        .ch-mc-err { font-size: 11px; color: #334155; font-weight: 600; white-space: nowrap; }
         .ch-section-lbl { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin: 14px 0 6px; }
         .ch-strip { display: flex; gap: 3px; }
         .ch-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
@@ -2950,7 +2950,7 @@
                   hrs: '小时', advice: '建议', noData: '正在载入天气数据…',
                   pressure3d: '近3天累积', pastWet: '潮湿天数', recentRain: '近3天实际雨量',
                   presUp: '↑ 病压上升(近期持续潮湿)', presDown: '↓ 病压下降(近期转干)', presFlat: '病压平稳',
-                  fcAcc: '预报准确度', fcAccReg: '区域平均', fcDays: '天', fcRainErr: '雨量误差', fcNoData: '准确度累积中(需数天数据)', fcExplainTitle: '预报准确度如何运作', fcExplain: '本应用软件会每天把「预报」与「实际发生」做比较,然后在本机累积评分(每部手机各自独立)。刚开始使用时没有历史可比,所以需要几天到几周才能显示稳定的准确度。这不是故障 —— 您用得越久,评分越能真实反映本地预报的可靠度。山区的雨和雾本来就较难预报,因此评分有高有低是正常且诚实的。',
+                  fcAcc: '预报准确度', fcAccReg: '区域平均', fcDays: '天', fcRainErr: '雨量误差', fcNoData: '准确度累积中(需数天数据)', fcExplainTitle: '预报准确度如何运作', fcExplain: '本应用软件每天把「预报」与「实际发生」做比较,然后在本机累积评分(每部手机各自独立)。<br><br><b>如何看这一行:</b><br>• <b>80% 高</b> — 本地点的整体预报准确度。≥75% 为高、50–74% 为中、<50% 为低。<br>• <b>±3.1mm</b> — 每日雨量预报误差的平均值(预报与实际相差多少毫米)。数值越低越准。<br>• <b>±1.2°C</b> — 日间最高温预报的平均误差 (°C)。<br>• <b>±4% RH</b> — 湿度预报的平均误差。<br>• <b>区域平均 77%</b> — 您所有地点的平均分,可作为本地预报表现的参照。<br><br>刚开始使用时没有历史可比,所以需要几天到几周才能显示稳定的准确度。这不是故障 —— 您用得越久,评分越能真实反映本地预报的可靠度。对流暴雨与雷阵雨本来就较难预报,因此评分有高有低是正常且诚实的。',
                   fcHigh: '高', fcMed: '中', fcLow: '偏低',
                   srcModel: '数据源', srcLwModel: '叶面湿润: 模型原生', srcLwComputed: '叶面湿润: RH/露点/雨/云 推算',
                   diseaseRisk: '病害风险',
@@ -2964,7 +2964,7 @@
                   hrs: 'h', advice: 'Action', noData: 'Loading weather data…',
                   pressure3d: '3-day buildup', pastWet: 'wet days', recentRain: 'actual rain (3d)',
                   presUp: '↑ Rising (recent wet spell)', presDown: '↓ Easing (recently drier)', presFlat: 'Steady pressure',
-                  fcAcc: 'Forecast accuracy', fcAccReg: 'regional avg', fcDays: 'd', fcRainErr: 'rain error', fcNoData: 'Accuracy building (needs a few days)', fcExplainTitle: 'How forecast accuracy works', fcExplain: 'Each day the app compares the FORECAST against what ACTUALLY happened and builds a score on THIS device (each phone tracks its own). When you first start there is no history to compare, so it takes a few days to a few weeks to show a stable accuracy. This is not a fault — the longer you use it, the more truthfully the score reflects how reliable the local forecast is. Lowland convective downpours and thunderstorms are genuinely hard to forecast, so a mix of high and low scores is normal and honest.',
+                  fcAcc: 'Forecast accuracy', fcAccReg: 'regional avg', fcDays: 'd', fcRainErr: 'rain error', fcNoData: 'Accuracy building (needs a few days)', fcExplainTitle: 'How forecast accuracy works', fcExplain: 'Each day the app compares the FORECAST against what ACTUALLY happened and builds a score on THIS device (each phone tracks its own).<br><br><b>How to read this row:</b><br>• <b>80% high</b> — overall forecast accuracy for this location. ≥75% high, 50–74% medium, <50% low.<br>• <b>±3.1mm</b> — average daily rainfall forecast error (how many mm the forecast was off by). Lower is better.<br>• <b>±1.2°C</b> — average daytime-peak temperature forecast error in °C.<br>• <b>±4% RH</b> — average humidity forecast error.<br>• <b>regional avg 77%</b> — average across all your locations, useful as a sanity check on how the forecast is performing in your area.<br><br>When you first start there is no history to compare, so it takes a few days to a few weeks to show a stable accuracy. This is not a fault — the longer you use it, the more truthfully the score reflects how reliable the local forecast is. Convective downpours and thunderstorms are genuinely hard to forecast, so a mix of high and low scores is normal and honest.',
                   fcHigh: 'High', fcMed: 'Fair', fcLow: 'Low',
                   srcModel: 'Source', srcLwModel: 'Leaf wetness: model native', srcLwComputed: 'Leaf wetness: derived (RH/dew/rain/cloud)',
                   diseaseRisk: 'Disease risk',
@@ -2974,17 +2974,17 @@
                   act_high: 'High — prepare preventive spray, reduce leaf wetness.', act_crit: 'Critical — spray promptly, improve drainage & airflow.' },
             ms: { zone: 'Zon', elevation: 'Ketinggian', unknown: '—',
                   fcAcc: 'Ketepatan ramalan', fcAccReg: 'purata serantau', fcDays: 'h', fcRainErr: 'ralat hujan',
-                  fcNoData: 'Ketepatan sedang dikumpul (perlu beberapa hari)', fcExplainTitle: 'Cara ketepatan ramalan berfungsi', fcExplain: 'Setiap hari apl membandingkan RAMALAN dengan apa yang BENAR-BENAR berlaku dan membina skor pada peranti INI (setiap telefon menjejak sendiri). Pada mulanya tiada sejarah untuk dibandingkan, jadi ia mengambil beberapa hari hingga beberapa minggu untuk menunjukkan ketepatan yang stabil. Ini bukan kerosakan — lebih lama anda guna, lebih jujur skor mencerminkan kebolehpercayaan ramalan tempatan. Hujan perdana dan ribut petir tanah rendah memang sukar diramal, jadi skor tinggi-rendah adalah normal dan jujur.',
+                  fcNoData: 'Ketepatan sedang dikumpul (perlu beberapa hari)', fcExplainTitle: 'Cara ketepatan ramalan berfungsi', fcExplain: 'Setiap hari apl membandingkan RAMALAN dengan apa yang BENAR-BENAR berlaku dan membina skor pada peranti INI (setiap telefon menjejak sendiri).<br><br><b>Cara membaca baris ini:</b><br>• <b>80% tinggi</b> — ketepatan ramalan keseluruhan untuk lokasi ini. ≥75% tinggi, 50–74% sederhana, <50% rendah.<br>• <b>±3.1mm</b> — purata ralat ramalan hujan harian (berapa mm ramalan tersasar). Lebih rendah lebih baik.<br>• <b>±1.2°C</b> — purata ralat ramalan suhu puncak siang dalam °C.<br>• <b>±4% RH</b> — purata ralat ramalan kelembapan.<br>• <b>purata rantau 77%</b> — purata bagi semua lokasi anda, berguna sebagai pemeriksaan bagaimana ramalan berfungsi di kawasan anda.<br><br>Pada mulanya tiada sejarah untuk dibandingkan, jadi ia mengambil beberapa hari hingga beberapa minggu untuk menunjukkan ketepatan yang stabil. Ini bukan kerosakan — lebih lama anda guna, lebih jujur skor mencerminkan kebolehpercayaan ramalan tempatan. Hujan perdana dan ribut petir memang sukar diramal, jadi skor tinggi-rendah adalah normal dan jujur.',
                   fcHigh: 'Tinggi', fcMed: 'Sederhana', fcLow: 'Rendah', noData: 'Memuatkan data cuaca…',
                   riverine: 'Tepi sungai (lembap)', lowvalley: 'Lembah terlindung (angin lemah)', openplain: 'Dataran terbuka (kawasan utama)', coastal: 'Pesisir (lapang)' },
             ta: { zone: 'மண்டலம்', elevation: 'உயரம்', unknown: '—',
                   fcAcc: 'முன்னறிவிப்பு துல்லியம்', fcAccReg: 'பிராந்திய சராசரி', fcDays: 'நா', fcRainErr: 'மழை பிழை',
-                  fcNoData: 'துல்லியம் சேகரிக்கப்படுகிறது (சில நாட்கள் தேவை)', fcExplainTitle: 'முன்னறிவிப்பு துல்லியம் எப்படி வேலை செய்கிறது', fcExplain: 'ஒவ்வொரு நாளும் செயலி முன்னறிவிப்பை உண்மையில் நடந்ததுடன் ஒப்பிட்டு, இந்த சாதனத்தில் மதிப்பெண்ணை உருவாக்குகிறது (ஒவ்வொரு தொலைபேசியும் தனித்தனியாக). தொடக்கத்தில் ஒப்பிட வரலாறு இல்லை, எனவே நிலையான துல்லியத்தைக் காட்ட சில நாட்கள் முதல் சில வாரங்கள் ஆகும். இது குறைபாடு அல்ல — நீங்கள் அதிகம் பயன்படுத்தும்போது மதிப்பெண் உண்மையாக இருக்கும். தாழ்நிலப் பகுதியின் கனமழையும் இடியுடன் கூடிய மழையும் கணிக்க கடினம், எனவே உயர்வு-தாழ்வு இயல்பானது.',
+                  fcNoData: 'துல்லியம் சேகரிக்கப்படுகிறது (சில நாட்கள் தேவை)', fcExplainTitle: 'முன்னறிவிப்பு துல்லியம் எப்படி வேலை செய்கிறது', fcExplain: 'ஒவ்வொரு நாளும் செயலி முன்னறிவிப்பை உண்மையில் நடந்ததுடன் ஒப்பிட்டு, இந்த சாதனத்தில் மதிப்பெண்ணை உருவாக்குகிறது (ஒவ்வொரு தொலைபேசியும் தனித்தனியாக).<br><br><b>இந்த வரியை எப்படி படிக்கலாம்:</b><br>• <b>80% உயர்</b> — இந்த இடத்திற்கான ஒட்டுமொத்த முன்னறிவிப்பு துல்லியம். ≥75% உயர், 50–74% நடுத்தர, <50% குறைவு.<br>• <b>±3.1mm</b> — தினசரி மழை முன்னறிவிப்பு பிழையின் சராசரி (மில்லிமீட்டரில் முன்னறிவிப்பு எவ்வளவு தவறியது). குறைவாக இருப்பது சிறந்தது.<br>• <b>±1.2°C</b> — பகல்நேர உச்ச வெப்பநிலை முன்னறிவிப்பு பிழை சராசரி (°C).<br>• <b>±4% RH</b> — ஈரப்பதம் முன்னறிவிப்பு பிழை சராசரி.<br>• <b>பிராந்திய சராசரி 77%</b> — உங்கள் அனைத்து இடங்களின் சராசரி, உள்ளூர் முன்னறிவிப்பின் செயல்திறனைப் பார்க்க பயனுள்ளது.<br><br>தொடக்கத்தில் ஒப்பிட வரலாறு இல்லை, எனவே நிலையான துல்லியத்தைக் காட்ட சில நாட்கள் முதல் சில வாரங்கள் ஆகும். இது குறைபாடு அல்ல — நீங்கள் அதிகம் பயன்படுத்தும்போது மதிப்பெண் உண்மையாக இருக்கும். கனமழையும் இடியுடன் கூடிய மழையும் கணிக்க கடினம், எனவே உயர்வு-தாழ்வு இயல்பானது.',
                   fcHigh: 'அதிகம்', fcMed: 'நடுத்தரம்', fcLow: 'குறைவு', noData: 'வானிலை தரவு ஏற்றுகிறது…',
                   riverine: 'ஆற்றங்கரை (ஈரப்பதம்)', lowvalley: 'மறைவான பள்ளம் (காற்றோட்டம் குறைவு)', openplain: 'திறந்த சமவெளி (முக்கிய பகுதி)', coastal: 'கடற்கரை (காற்றோட்டம்)' },
             my: { zone: 'ဇုန်', elevation: 'အမြင့်', unknown: '—',
                   fcAcc: 'ခန့်မှန်းမှု တိကျမှု', fcAccReg: 'ဒေသဆိုင်ရာ ပျမ်းမျှ', fcDays: 'ရက်', fcRainErr: 'မိုးအမှား',
-                  fcNoData: 'တိကျမှု စုဆောင်းနေသည် (ရက်အနည်းငယ်လို)', fcExplainTitle: 'ခန့်မှန်းတိကျမှု အလုပ်လုပ်ပုံ', fcExplain: 'နေ့စဉ် အက်ပ်သည် ခန့်မှန်းချက်ကို အမှန်တကယ်ဖြစ်ပျက်သည့်အရာနှင့် နှိုင်းယှဉ်ပြီး ဤစက်ပစ္စည်းတွင် ရမှတ်တည်ဆောက်သည် (ဖုန်းတစ်လုံးစီ သီးခြားမှတ်တမ်းတင်)။ စတင်ချိန်တွင် နှိုင်းယှဉ်ရန်မှတ်တမ်းမရှိသဖြင့် တည်ငြိမ်သောတိကျမှုပြရန် ရက်အနည်းငယ်မှ ရက်သတ္တပတ်အနည်းငယ်ကြာသည်။ ၎င်းသည် ချွတ်ယွင်းချက်မဟုတ်ပါ — အသုံးပြုလေလေ ရမှတ်က ပိုမှန်ကန်စွာ ဖော်ပြလေဖြစ်သည်။ မြေနိမ့်ဒေသ၏ ရုတ်တရက်ရွာသွန်းသောမိုးနှင့် မိုးကြိုးမုန်တိုင်းများကို ခန့်မှန်းရခက်သဖြင့် ရမှတ်အနိမ့်အမြင့်ရှိခြင်းသည် ပုံမှန်ဖြစ်သည်။',
+                  fcNoData: 'တိကျမှု စုဆောင်းနေသည် (ရက်အနည်းငယ်လို)', fcExplainTitle: 'ခန့်မှန်းတိကျမှု အလုပ်လုပ်ပုံ', fcExplain: 'နေ့စဉ် အက်ပ်သည် ခန့်မှန်းချက်ကို အမှန်တကယ်ဖြစ်ပျက်သည့်အရာနှင့် နှိုင်းယှဉ်ပြီး ဤစက်ပစ္စည်းတွင် ရမှတ်တည်ဆောက်သည် (ဖုန်းတစ်လုံးစီ သီးခြားမှတ်တမ်းတင်)။<br><br><b>ဤလိုင်းကို ဘယ်လိုဖတ်မလဲ:</b><br>• <b>80% မြင့်</b> — ဤနေရာ၏ စုစုပေါင်း ခန့်မှန်းတိကျမှု။ ≥75% မြင့်၊ 50–74% အလယ်အလတ်၊ <50% နိမ့်။<br>• <b>±3.1mm</b> — နေ့စဉ်မိုးခန့်မှန်းအမှား၏ ပျမ်းမျှ (မီလီမီတာဖြင့် မည်မျှ လွဲချော်နေသနည်း)။ နိမ့်လေ ပိုကောင်းလေ။<br>• <b>±1.2°C</b> — နေ့ခင်းအပူချိန်အမြင့်ဆုံး ခန့်မှန်းအမှား ပျမ်းမျှ (°C)။<br>• <b>±4% RH</b> — စိုထိုင်းဆခန့်မှန်းအမှား ပျမ်းမျှ။<br>• <b>ဒေသပျမ်းမျှ 77%</b> — သင်၏ နေရာများအားလုံး၏ ပျမ်းမျှ၊ ဒေသခံခန့်မှန်းချက်စွမ်းဆောင်ရည်ကိုကြည့်ရှုရန် အသုံးဝင်သည်။<br><br>စတင်ချိန်တွင် နှိုင်းယှဉ်ရန်မှတ်တမ်းမရှိသဖြင့် တည်ငြိမ်သောတိကျမှုပြရန် ရက်အနည်းငယ်မှ ရက်သတ္တပတ်အနည်းငယ်ကြာသည်။ ၎င်းသည် ချွတ်ယွင်းချက်မဟုတ်ပါ — အသုံးပြုလေလေ ရမှတ်က ပိုမှန်ကန်စွာ ဖော်ပြလေဖြစ်သည်။ ရုတ်တရက်ရွာသွန်းသောမိုးနှင့် မိုးကြိုးမုန်တိုင်းများကို ခန့်မှန်းရခက်သဖြင့် ရမှတ်အနိမ့်အမြင့်ရှိခြင်းသည် ပုံမှန်ဖြစ်သည်။',
                   fcHigh: 'မြင့်', fcMed: 'အလယ်အလတ်', fcLow: 'နိမ့်', noData: 'ရာသီဥတုဒေတာ ဖွင့်နေသည်…',
                   riverine: 'မြစ်ကမ်း (စိုထိုင်း)', lowvalley: 'ကာကွယ်ထားသောချိုင့် (လေနည်း)', openplain: 'လွင်ပြင် (အဓိကဇုန်)', coastal: 'ကမ်းရိုး (လေဝင်လေထွက်)' }
         };
@@ -3021,7 +3021,7 @@
             if (acc.available) {
                 const c = accColor(acc.score);
                 accInline = `<span class="ch-mc-acc">🎯 <b style="color:${c};">${acc.score}% ${accLabel(acc.score)}</b></span>` +
-                            `<span class="ch-mc-err">±${acc.avgRainErr}mm ±${acc.avgTempErr}° ±${acc.avgRhErr}%${reg.available ? ` · ${T.fcAccReg} ${reg.score}%` : ''}</span>` +
+                            `<span class="ch-mc-err">±${acc.avgRainErr}mm ±${acc.avgTempErr}°C ±${acc.avgRhErr}% RH${reg.available ? ` · ${T.fcAccReg} ${reg.score}%` : ''}</span>` +
                             accInfoBtn;
             } else {
                 accInline = `<span class="ch-mc-acc" style="color:#94a3b8;">🎯 ${T.fcNoData}</span>` + accInfoBtn;
@@ -5684,9 +5684,57 @@
                 if(hiddenIds.includes(s.id)) return;
                 const tEle = document.getElementById(`t-${s.id}`), pEle = document.getElementById(`p-${s.id}`); if (!tEle || !pEle) return;
                 const tempArr = getHourlyData(s.id, 'temperature_2m'), probArr = getHourlyData(s.id, 'precipitation_probability');
-                let t = s.t, p = s.p; if (tempArr?.[dataIdx] !== undefined) t = tempArr[dataIdx]; if (probArr?.[dataIdx] !== undefined) p = probArr[dataIdx];
-                tEle.innerText = t.toFixed(1) + '°C'; pEle.innerText = Math.round(p) + '%';
+                let t = s.t; if (tempArr?.[dataIdx] !== undefined) t = tempArr[dataIdx];
+                tEle.innerText = t.toFixed(1) + '°C';
                 tEle.className = `text-[17px] font-black tabular-nums transition-colors ${t >= 30 ? 'text-red-600' : (t < 24 ? 'text-blue-600' : 'text-slate-900')}`;
+
+                // --- Rain probability: current-hour → day-max range ----------
+                // Meeting decision (2026-06-08): the card used to show ONLY the
+                // current hour's rain probability, which confused users when the
+                // WhatsApp broadcast showed the day's MAX for the same farm (card
+                // 7% vs broadcast 76% — both correct, different time scopes). The
+                // card now shows a "current-daymax%" range so both numbers sit
+                // together:
+                //   • before the peak : "7-76%"  (now 7%, peaks at 76% later today)
+                //   • current == max  : "76%"     (no range — already at the peak)
+                //   • after the peak  : "30%" in LIGHTER blue, no day-max — the
+                //                       higher reading is behind us, nothing bigger
+                //                       is still coming today, so a forward-looking
+                //                       range would be stale.
+                // Day max is the full-day 0-23h max, the SAME scope the broadcast's
+                // dailyPP uses, so the range's top number equals the broadcast's.
+                if (Array.isArray(probArr) && probArr.length) {
+                    const nowH = dataIdx;
+                    const today = probArr.slice(0, 24);
+                    const cur = Math.round(probArr[nowH] ?? s.p ?? 0);
+                    let dayMax = 0;
+                    for (let h = 0; h < today.length; h++) {
+                        const v = Math.round(today[h] ?? 0);
+                        if (v > dayMax) dayMax = v;
+                    }
+                    // Last hour reaching the (rounded) day max. Peak is "passed"
+                    // only once we're strictly beyond the FINAL max hour, so a
+                    // twin-peak day keeps the range until after the later peak.
+                    let lastMaxH = -1;
+                    for (let h = 0; h < today.length; h++) {
+                        if (Math.round(today[h] ?? 0) >= dayMax) lastMaxH = h;
+                    }
+                    const peakPassed = nowH > lastMaxH;
+                    if (peakPassed) {
+                        pEle.innerText = cur + '%';
+                        pEle.style.color = '#60a5fa';      // lighter blue — peak behind us
+                    } else if (cur >= dayMax) {
+                        pEle.innerText = dayMax + '%';      // current already at the peak
+                        pEle.style.color = '';              // normal (class) blue
+                    } else {
+                        pEle.innerText = cur + '-' + dayMax + '%';
+                        pEle.style.color = '';              // normal (class) blue
+                    }
+                } else {
+                    // No hourly array (offline / cache miss) — fall back to seed value.
+                    pEle.innerText = Math.round(s.p ?? 0) + '%';
+                    pEle.style.color = '';
+                }
 
                 // --- Cameron Highlands disease-risk badge --------------------
                 // Compute today's headline disease risk from fetched weather and
@@ -5887,6 +5935,18 @@
             if (sortMode === 'fav') {
                 const isFavA = favoriteIds.includes(a.id); const isFavB = favoriteIds.includes(b.id);
                 if (isFavA && !isFavB) return -1; if (!isFavA && isFavB) return 1;
+                // Among favourites themselves, order by marking sequence — first-marked
+                // stays on top, second-marked second, and so on. favoriteIds is appended
+                // to on mark (toggleFavorite uses a Set, which preserves insertion order),
+                // so its index IS the marking order. Without this, two favourites fall
+                // through to the elevation/geographic sort below and end up re-ordered
+                // N→S even if the user marked them in a different sequence — which
+                // surprised the broadcaster who expected "what I pinned first stays on
+                // top". Only applies in 'fav' sort mode; 'elev' mode explicitly wants
+                // pure elevation ordering end-to-end and is unchanged.
+                if (isFavA && isFavB) {
+                    return favoriteIds.indexOf(a.id) - favoriteIds.indexOf(b.id);
+                }
             }
             // Elevation high → low (primary ordering on the home list).
             const elevA = (typeof a.elev === 'number') ? a.elev : -Infinity;
