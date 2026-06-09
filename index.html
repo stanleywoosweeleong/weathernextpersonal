@@ -5289,14 +5289,42 @@
                 setH(`hdr-vpd-${id}`, `${cH.vpd}${help('vpd','What is VPD?')}`);
                 if (typeof fogT === 'function') setH(`hdr-fog-${id}`, fogT(lang).title);
             }
+            // BUG FIX: capture help-card open state BEFORE renderDiseaseDashboard
+            // and renderFogForecast run, because those re-renders overwrite
+            // their slot's innerHTML and so destroy any help-card div nested
+            // inside them (notably help-card-accuracy-* lives inside the
+            // disease dashboard slot). Without this snapshot, the refresh loop
+            // below sees the fresh empty replacement div, finds no .open class,
+            // and the user's open card silently closes when they tap a language.
+            // We restore each card's open state explicitly after the re-renders.
+            const HELP_RT_LIST = ['temp','wvet','cloud','storm','sky','accuracy','leafwet','et0','vpd','fog'];
+            const _openHelpCards = {};
+            HELP_RT_LIST.forEach(rt => {
+                const hc = el(`help-card-${rt}-${id}`);
+                if (hc && hc.classList.contains('open')) _openHelpCards[rt] = true;
+            });
             try { if (typeof window.renderDiseaseDashboard === 'function') window.renderDiseaseDashboard(id); } catch (e) {}
             try { if (typeof window.renderFogForecast === 'function') window.renderFogForecast(id); } catch (e) {}
             // Refresh any OPEN help card so its text switches language in place,
-            // without the user having to close and re-tap the "?" icon.
+            // without the user having to close and re-tap the "?" icon. For
+            // cards whose div survived (most: temp, wvet, cloud, ...), we use
+            // forceRebuild=true to swap content in place. For cards whose div
+            // was destroyed and recreated empty by the dashboard re-render
+            // (accuracy), the snapshot tells us it WAS open, so we re-open
+            // it from scratch — which both rebuilds the content in the new
+            // language and re-applies the .open class to the fresh div.
             try {
-                ['temp','wvet','cloud','storm','sky','accuracy','leafwet','et0','vpd','fog'].forEach(rt => {
+                HELP_RT_LIST.forEach(rt => {
+                    if (!_openHelpCards[rt]) return;
                     const hc = el(`help-card-${rt}-${id}`);
-                    if (hc && hc.classList.contains('open')) window.toggleHelpCard(id, rt, true);
+                    if (!hc) return;
+                    if (hc.classList.contains('open')) {
+                        // Div survived — refresh content in place
+                        window.toggleHelpCard(id, rt, true);
+                    } else {
+                        // Div was recreated empty by a re-render above — reopen fresh
+                        window.toggleHelpCard(id, rt);
+                    }
                 });
             } catch (e) {}
             try { if (typeof window.renderPastStrips === 'function') window.renderPastStrips(id); } catch (e) {}
@@ -8645,13 +8673,35 @@
             let w;
             
             if (cells && cells.length === 14) {
-                // SVG is positioned at dateRow's left edge (see code below).
-                // So cell.offsetLeft (relative to dateRow) maps directly to SVG x-coords.
-                for (let i = 0; i < 14; i++) {
-                    const cell = cells[i];
-                    columnCenters.push(cell.offsetLeft + cell.offsetWidth / 2);
-                }
                 w = dateRow.offsetWidth;
+                // BUG FIX: on narrow mobile viewports (e.g. 393px iPhone, ~353px
+                // chart content area after the report-card's 20px padding), the
+                // date cells contain "9/6".."22/6" text and use flex:1 without
+                // min-width:0, so they refuse to shrink below their content's
+                // intrinsic width. The 14 cells then sum to ~385px and overflow
+                // the dateRow's own 100% width (353px). If we trust their
+                // offsetLeft/offsetWidth here, columnCenters[13] lands at ~365 —
+                // past the SVG width (353), and the rightmost text label gets
+                // clipped by the SVG's default overflow:hidden. (That's exactly
+                // what users saw: "30.5" rendered as just "3" on the right.)
+                //
+                // Detect that overflow and fall back to even distribution across
+                // the dateRow's actual width. The DATA rows (row-temp-combined,
+                // row-vpd, row-et, ...) contain empty cells which DO share the
+                // 353px evenly, so even-distribution column centers correctly
+                // align with where the data cells are actually painted.
+                const lastCellRight = cells[13].offsetLeft + cells[13].offsetWidth;
+                if (lastCellRight > w + 1) {
+                    const s = w / 14;
+                    for (let i = 0; i < 14; i++) columnCenters.push(i * s + s / 2);
+                } else {
+                    // SVG is positioned at dateRow's left edge (see code below).
+                    // So cell.offsetLeft (relative to dateRow) maps directly to SVG x-coords.
+                    for (let i = 0; i < 14; i++) {
+                        const cell = cells[i];
+                        columnCenters.push(cell.offsetLeft + cell.offsetWidth / 2);
+                    }
+                }
             } else {
                 // Fallback: even split
                 w = svgT.parentElement.clientWidth || 350;

@@ -52,7 +52,7 @@
 // / Dense fog in the morning / Kabus tebal waktu pagi). Generic identity
 // (empty seedLocs, no name seed, location-name-free AI prompt, gift-flow) unchanged.
 
-const CACHE_VERSION = 'wnext-weathernextpersonal-202606082000';
+const CACHE_VERSION = 'wnext-weathernextpersonal-202606091410';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const WEATHER_CACHE = `${CACHE_VERSION}-weather`;
